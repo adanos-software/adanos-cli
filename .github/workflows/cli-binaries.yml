@@ -5,6 +5,9 @@ on:
     types:
       - published
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build:
     name: Build CLI Binary (${{ matrix.target }})
@@ -37,7 +40,7 @@ jobs:
         run: python scripts/build_cli_binary.py --output-dir dist-binaries
 
       - name: Upload binary artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cli-binary-${{ matrix.target }}
           if-no-files-found: error
@@ -55,7 +58,7 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
 
       - name: Download binary artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: release-artifacts
 
@@ -96,7 +99,7 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
 
       - name: Download binary artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: formula-artifacts
 
@@ -129,7 +132,7 @@ jobs:
             --output dist/homebrew/adanos-cli.rb
 
       - name: Upload Homebrew formula artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: homebrew-formula
           path: dist/homebrew/adanos-cli.rb
