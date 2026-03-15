@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "adanos-cli"
+dynamic = ["version"]
+description = "CLI for the Adanos Finance Sentiment API"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Alexander Schneider" }]
+dependencies = [
+  "social-stock-sentiment>=1.20.0,<2",
+  "httpx>=0.23,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2",
+  "pyinstaller>=6.15",
+  "pytest>=8",
+  "respx>=0.22",
+]
+
+[project.urls]
+Homepage = "https://api.adanos.org"
+Documentation = "https://github.com/adanos-software/adanos-cli#readme"
+Repository = "https://github.com/adanos-software/adanos-cli"
+Issues = "https://github.com/adanos-software/adanos-cli/issues"
+Changelog = "https://github.com/adanos-software/adanos-cli/blob/main/CHANGELOG.md"
+
+[project.scripts]
+adanos = "adanos_cli.main:main"
+adanos-cli = "adanos_cli.main:main"
+
+[tool.hatch.version]
+path = "src/adanos_cli/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/adanos_cli"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

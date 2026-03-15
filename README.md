@@ -1,0 +1,219 @@
+# adanos-cli
+
+`adanos-cli` is the command-line client for the [Adanos Finance Sentiment API](https://api.adanos.org).
+
+It is built for three use cases:
+- traders who want fast stock and crypto sentiment reports
+- analysts who want repeatable CLI workflows
+- agents and automation that need stable JSON output
+
+The CLI is versioned independently from the API backend. It targets the public API at `https://api.adanos.org` and uses the published Python SDK under the hood.
+
+## Install
+
+### Recommended
+
+```bash
+pipx install adanos-cli
+```
+
+### Plain pip
+
+```bash
+python3 -m pip install adanos-cli
+```
+
+### From source
+
+```bash
+git clone https://github.com/adanos-software/adanos-cli.git
+cd adanos-cli
+python3 -m pip install -e ".[dev]"
+```
+
+## Quick Start
+
+If you already have an API key:
+
+```bash
+adanos login --api-key sk_live_xxx
+adanos whoami
+adanos doctor
+```
+
+First market checks:
+
+```bash
+adanos consensus TSLA --days 7
+adanos explain TSLA --profile investor --days 7
+adanos scan --asset stocks --style daytrader --days 7 --top 10
+```
+
+Crypto:
+
+```bash
+adanos crypto BTC --days 7
+adanos crypto BTC/ETH --days 7
+```
+
+## Start Modes
+
+`adanos` shows a compact start screen with the CLI header and next actions.
+
+```bash
+adanos
+```
+
+Explicit interactive shell:
+
+```bash
+adanos shell
+```
+
+One-shot command mode:
+
+```bash
+adanos stock NVDA --days 7
+```
+
+## Authentication
+
+Persist a key locally:
+
+```bash
+adanos login --api-key sk_live_xxx
+```
+
+Use profiles:
+
+```bash
+adanos auth login --api-key sk_live_prod --profile prod
+adanos auth login --api-key sk_live_staging --profile staging
+adanos auth switch prod
+adanos auth current --json
+```
+
+Priority order:
+- `--api-key`
+- `ADANOS_API_KEY`
+- stored credentials in the active profile
+
+## Common Workflows
+
+Stock report:
+
+```bash
+adanos stock TSLA --days 7
+```
+
+Cross-platform consensus:
+
+```bash
+adanos consensus TSLA --days 7
+```
+
+Narrative explanation:
+
+```bash
+adanos explain TSLA --profile investor --days 7
+```
+
+Watchlists:
+
+```bash
+adanos watchlist add core --asset stocks --symbols TSLA,NVDA,AAPL
+adanos watchlist report core --asset stocks --days 7
+adanos watch core --kind watchlist --asset stocks --refresh 60 --iterations 1
+```
+
+Raw endpoint access:
+
+```bash
+adanos endpoint list
+adanos endpoint call reddit-stocks.trending --days 1 --limit 10
+```
+
+## AI / Automation
+
+The CLI supports machine-readable output via `--output json` or `--quiet`.
+
+```bash
+adanos --quiet capabilities
+adanos --quiet whoami
+adanos --quiet doctor
+adanos --quiet ask "How does TSLA look?"
+adanos --quiet endpoint call news-stocks.trending --days 1 --limit 3
+```
+
+JSON conventions:
+- object payloads include a stable `kind`
+- command wrappers include `command`, and `subcommand` when relevant
+- endpoint-backed payloads include `platform`, `route`, `endpoint`, `path`, and `data`
+
+## Diagnostics
+
+Identity and runtime context:
+
+```bash
+adanos whoami
+```
+
+Problem-focused self-check:
+
+```bash
+adanos doctor
+adanos doctor --verbose
+```
+
+## Releases
+
+Tagged releases build standalone archives for:
+- macOS arm64
+- macOS x86_64
+- Linux x86_64
+
+The repo also generates a Homebrew formula artifact for each tagged binary release.
+
+## Development
+
+Install the repo in editable mode:
+
+```bash
+python3 -m pip install -e ".[dev]"
+```
+
+Run tests:
+
+```bash
+python3 -m pytest tests -q
+```
+
+Build wheel and sdist:
+
+```bash
+python3 -m build
+```
+
+Build a standalone binary archive locally:
+
+```bash
+python3 scripts/build_cli_binary.py --output-dir dist-binaries
+```
+
+Generate a Homebrew formula:
+
+```bash
+python3 scripts/generate_homebrew_formula.py \
+  --version 1.20.0 \
+  --darwin-arm64-url https://example.com/adanos-cli-1.20.0-darwin-arm64.tar.gz \
+  --darwin-arm64-sha256 <sha256> \
+  --darwin-x86_64-url https://example.com/adanos-cli-1.20.0-darwin-x86_64.tar.gz \
+  --darwin-x86_64-sha256 <sha256> \
+  --linux-x86_64-url https://example.com/adanos-cli-1.20.0-linux-x86_64.tar.gz \
+  --linux-x86_64-sha256 <sha256> \
+  --output dist/homebrew/adanos-cli.rb
+```
+
+## License
+
+MIT

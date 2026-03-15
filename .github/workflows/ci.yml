@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: python -m pip install ".[dev]"
+
+      - name: Run tests
+        run: python -m pytest tests -q
+
+      - name: Build wheel and sdist
+        run: python -m build
+
+      - name: Smoke install with pipx
+        run: |
+          python -m pip install pipx
+          python -m pipx ensurepath
+          python -m pipx install dist/adanos_cli-*.whl
+          ~/.local/bin/adanos --version
+          ~/.local/bin/adanos --output json capabilities

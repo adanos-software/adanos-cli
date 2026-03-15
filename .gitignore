@@ -1,0 +1,60 @@
+# Data (exclude scraped data, but include seed data)
+data/*
+!data/ticker_reference_data.sql
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+venv/
+.venv/
+*.egg-info/
+dist/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Server documentation (contains secrets!)
+SERVER.md
+docs/SERVER.md
+
+# Node
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models (ONNX sentiment model, downloaded locally or in Docker)
+/models/
+
+# Logs
+*.log
+logs/
+
+# Generated OpenAPI specs
+openapi.*.yaml
+
+# Generated SDK client (regenerate with scripts/generate_sdk.sh)
+sdk/python/src/stocksentiment/_generated/
+sdk/app/
+
+# Exported data
+*.csv
+
+# Testing
+.pytest_cache/
+.coverage
+coverage_report/
+htmlcov/
+*.sqlite
+test_*.sqlite
+accounts.db

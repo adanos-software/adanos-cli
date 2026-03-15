@@ -1,0 +1,120 @@
+name: CLI Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build CLI Binary (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-13, macos-14]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install build dependencies
+        run: python -m pip install ".[dev]"
+
+      - name: Build standalone binary archive
+        run: python scripts/build_cli_binary.py --output-dir dist-binaries
+
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-binaries-${{ matrix.os }}
+          path: dist-binaries/*
+
+  release:
+    name: Release CLI Binaries
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download binary artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: release-artifacts
+
+      - name: Collect release files
+        run: |
+          VERSION=$(python - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("src/adanos_cli/__init__.py").read_text(encoding="utf-8")
+          print(re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1))
+          PY
+          )
+          mkdir -p release-upload
+          find release-artifacts -type f -name '*.tar.gz' -exec cp {} release-upload/ \;
+          cp "release-upload/adanos-cli-${VERSION}-darwin-arm64.tar.gz" release-upload/adanos-darwin-arm64.tar.gz
+          cp "release-upload/adanos-cli-${VERSION}-darwin-x86_64.tar.gz" release-upload/adanos-darwin-x86_64.tar.gz
+          cp "release-upload/adanos-cli-${VERSION}-linux-x86_64.tar.gz" release-upload/adanos-linux-x86_64.tar.gz
+          shasum -a 256 release-upload/*.tar.gz > release-upload/SHA256SUMS.txt
+          ls -la release-upload
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-upload/*
+
+  homebrew-formula:
+    name: Generate Homebrew Formula
+    needs: [release]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download binary artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: formula-artifacts
+
+      - name: Generate formula
+        run: |
+          VERSION=$(python - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("src/adanos_cli/__init__.py").read_text(encoding="utf-8")
+          print(re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1))
+          PY
+          )
+          TAG=${GITHUB_REF_NAME}
+          DARWIN_X64=$(find formula-artifacts -type f -name "adanos-cli-${VERSION}-darwin-x86_64.tar.gz" | head -n 1)
+          DARWIN_ARM64=$(find formula-artifacts -type f -name "adanos-cli-${VERSION}-darwin-arm64.tar.gz" | head -n 1)
+          LINUX_X64=$(find formula-artifacts -type f -name "adanos-cli-${VERSION}-linux-x86_64.tar.gz" | head -n 1)
+
+          test -n "$DARWIN_X64"
+          test -n "$DARWIN_ARM64"
+          test -n "$LINUX_X64"
+
+          python scripts/generate_homebrew_formula.py \
+            --version "$VERSION" \
+            --darwin-arm64-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/$(basename "$DARWIN_ARM64")" \
+            --darwin-arm64-sha256 "$(shasum -a 256 "$DARWIN_ARM64" | awk '{print $1}')" \
+            --darwin-x86_64-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/$(basename "$DARWIN_X64")" \
+            --darwin-x86_64-sha256 "$(shasum -a 256 "$DARWIN_X64" | awk '{print $1}')" \
+            --linux-x86_64-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/$(basename "$LINUX_X64")" \
+            --linux-x86_64-sha256 "$(shasum -a 256 "$LINUX_X64" | awk '{print $1}')" \
+            --output dist/homebrew/adanos-cli.rb
+
+      - name: Upload Homebrew formula artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: homebrew-formula
+          path: dist/homebrew/adanos-cli.rb
