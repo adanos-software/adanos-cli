@@ -21,6 +21,7 @@ dev = [
   "pyinstaller>=6.15",
   "pytest>=8",
   "respx>=0.22",
+  "twine>=6",
 ]
 
 [project.urls]

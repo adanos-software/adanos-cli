@@ -174,6 +174,38 @@ Tagged releases build standalone archives for:
 
 The repo also generates a Homebrew formula artifact for each tagged binary release.
 
+PyPI publishing also happens from this repo, not from the API monorepo.
+
+## Publishing
+
+Release ownership for `adanos-cli` now lives here.
+
+Typical release flow:
+
+```bash
+# 1) bump src/adanos_cli/__init__.py
+# 2) update CHANGELOG.md
+# 3) merge to main
+# 4) tag and push
+git tag v1.20.0
+git push origin v1.20.0
+```
+
+The `Publish to PyPI` workflow will:
+- verify that the tag matches `src/adanos_cli/__init__.py`
+- run the CLI test suite
+- build wheel + sdist
+- run `twine check`
+- install the built wheel via `pipx`
+- publish to PyPI via Trusted Publishing
+
+One-time PyPI setup:
+- PyPI project: `adanos-cli`
+- Owner: `adanos-software`
+- Repository: `adanos-cli`
+- Workflow: `publish-pypi.yml`
+- Environment: `pypi`
+
 ## Development
 
 Install the repo in editable mode:
