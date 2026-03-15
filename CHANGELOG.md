@@ -5,6 +5,14 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.20.1] - 2026-03-15
+
+### Changed
+- PyPI publishing now triggers only from a published GitHub Release in `adanos-software/adanos-cli`.
+- Binary release automation now attaches artifacts to the published GitHub Release that owns the version tag.
+- Package metadata now links directly to the public repository, releases page, PyPI project, and API docs.
+- Public README was trimmed to user-facing install and usage guidance, keeping release operations out of the public surface.
+
 ## [1.20.0] - 2026-03-15
 
 ### Added
