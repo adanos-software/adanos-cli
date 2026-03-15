@@ -1,13 +1,12 @@
 name: Publish to PyPI
 
 on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
+  release:
+    types:
+      - published
 
 concurrency:
-  group: publish-pypi-${{ github.ref }}
+  group: publish-pypi-${{ github.event.release.tag_name }}
   cancel-in-progress: false
 
 jobs:
@@ -19,13 +18,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v5
-
-      - name: Validate release target
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${GITHUB_REF_NAME}" != "main" ]; then
-            echo "Manual publish is only allowed from main."
-            exit 1
-          fi
+        with:
+          ref: ${{ github.event.release.tag_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -45,12 +39,16 @@ jobs:
           )
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-          if [ "${{ github.event_name }}" = "push" ]; then
-            TAG="${GITHUB_REF_NAME#v}"
-            if [ "$TAG" != "$VERSION" ]; then
-              echo "Tag version ($TAG) does not match package version ($VERSION)."
-              exit 1
-            fi
+          TAG="${{ github.event.release.tag_name }}"
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "Release tag must use SemVer and start with v. Got: $TAG"
+            exit 1
+          fi
+
+          TAG_VERSION="${TAG#v}"
+          if [ "$TAG_VERSION" != "$VERSION" ]; then
+            echo "Release tag version ($TAG_VERSION) does not match package version ($VERSION)."
+            exit 1
           fi
 
       - name: Install dependencies

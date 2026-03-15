@@ -1,10 +1,9 @@
 name: CLI Binaries
 
 on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
+  release:
+    types:
+      - published
 
 jobs:
   build:
@@ -16,6 +15,8 @@ jobs:
         os: [ubuntu-latest, macos-13, macos-14]
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -38,12 +39,13 @@ jobs:
   release:
     name: Release CLI Binaries
     needs: [build]
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
 
       - name: Download binary artifacts
         uses: actions/download-artifact@v5
@@ -59,6 +61,8 @@ jobs:
           print(re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1))
           PY
           )
+          TAG="${{ github.event.release.tag_name }}"
+          test "${TAG#v}" = "$VERSION"
           mkdir -p release-upload
           find release-artifacts -type f -name '*.tar.gz' -exec cp {} release-upload/ \;
           cp "release-upload/adanos-cli-${VERSION}-darwin-arm64.tar.gz" release-upload/adanos-darwin-arm64.tar.gz
@@ -70,15 +74,17 @@ jobs:
       - name: Publish release assets
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.release.tag_name }}
           files: release-upload/*
 
   homebrew-formula:
     name: Generate Homebrew Formula
     needs: [release]
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
 
       - name: Download binary artifacts
         uses: actions/download-artifact@v5
@@ -94,7 +100,7 @@ jobs:
           print(re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1))
           PY
           )
-          TAG=${GITHUB_REF_NAME}
+          TAG="${{ github.event.release.tag_name }}"
           DARWIN_X64=$(find formula-artifacts -type f -name "adanos-cli-${VERSION}-darwin-x86_64.tar.gz" | head -n 1)
           DARWIN_ARM64=$(find formula-artifacts -type f -name "adanos-cli-${VERSION}-darwin-arm64.tar.gz" | head -n 1)
           LINUX_X64=$(find formula-artifacts -type f -name "adanos-cli-${VERSION}-linux-x86_64.tar.gz" | head -n 1)

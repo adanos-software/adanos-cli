@@ -20,6 +20,7 @@ dist/
 # Server documentation (contains secrets!)
 SERVER.md
 docs/SERVER.md
+RELEASING.md
 
 # Node
 node_modules/

@@ -7,7 +7,7 @@ It is built for three use cases:
 - analysts who want repeatable CLI workflows
 - agents and automation that need stable JSON output
 
-The CLI is versioned independently from the API backend. It targets the public API at `https://api.adanos.org` and uses the published Python SDK under the hood.
+The CLI is versioned independently from the API backend. It targets the public API at `https://api.adanos.org/docs` and uses the published Python SDK under the hood.
 
 ## Install
 
@@ -178,21 +178,36 @@ PyPI publishing also happens from this repo, not from the API monorepo.
 
 ## Publishing
 
-Release ownership for `adanos-cli` now lives here.
+Release ownership for `adanos-cli` lives only in this repo.
+
+PyPI is published only from a published GitHub Release in `adanos-software/adanos-cli`.
+Neither a normal branch push nor a bare tag push will publish to PyPI.
 
 Typical release flow:
 
 ```bash
+VERSION=$(python3 - <<'PY'
+import re
+from pathlib import Path
+text = Path("src/adanos_cli/__init__.py").read_text(encoding="utf-8")
+print(re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1))
+PY
+)
+
 # 1) bump src/adanos_cli/__init__.py
 # 2) update CHANGELOG.md
 # 3) merge to main
-# 4) tag and push
-git tag v1.20.0
-git push origin v1.20.0
+# 4) create and push the version tag
+git push origin main
+git tag "v${VERSION}"
+git push origin "v${VERSION}"
+# 5) create the GitHub Release
+gh release create "v${VERSION}" --generate-notes
 ```
 
 The `Publish to PyPI` workflow will:
-- verify that the tag matches `src/adanos_cli/__init__.py`
+- run only when the GitHub Release is published
+- verify that the release tag matches `src/adanos_cli/__init__.py`
 - run the CLI test suite
 - build wheel + sdist
 - run `twine check`
@@ -235,13 +250,21 @@ python3 scripts/build_cli_binary.py --output-dir dist-binaries
 Generate a Homebrew formula:
 
 ```bash
+VERSION=$(python3 - <<'PY'
+import re
+from pathlib import Path
+text = Path("src/adanos_cli/__init__.py").read_text(encoding="utf-8")
+print(re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1))
+PY
+)
+
 python3 scripts/generate_homebrew_formula.py \
-  --version 1.20.0 \
-  --darwin-arm64-url https://example.com/adanos-cli-1.20.0-darwin-arm64.tar.gz \
+  --version "$VERSION" \
+  --darwin-arm64-url "https://example.com/adanos-cli-${VERSION}-darwin-arm64.tar.gz" \
   --darwin-arm64-sha256 <sha256> \
-  --darwin-x86_64-url https://example.com/adanos-cli-1.20.0-darwin-x86_64.tar.gz \
+  --darwin-x86_64-url "https://example.com/adanos-cli-${VERSION}-darwin-x86_64.tar.gz" \
   --darwin-x86_64-sha256 <sha256> \
-  --linux-x86_64-url https://example.com/adanos-cli-1.20.0-linux-x86_64.tar.gz \
+  --linux-x86_64-url "https://example.com/adanos-cli-${VERSION}-linux-x86_64.tar.gz" \
   --linux-x86_64-sha256 <sha256> \
   --output dist/homebrew/adanos-cli.rb
 ```

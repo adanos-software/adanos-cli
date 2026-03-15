@@ -26,10 +26,13 @@ dev = [
 
 [project.urls]
 Homepage = "https://api.adanos.org"
+API_Docs = "https://api.adanos.org/docs"
 Documentation = "https://github.com/adanos-software/adanos-cli#readme"
 Repository = "https://github.com/adanos-software/adanos-cli"
 Issues = "https://github.com/adanos-software/adanos-cli/issues"
 Changelog = "https://github.com/adanos-software/adanos-cli/blob/main/CHANGELOG.md"
+Releases = "https://github.com/adanos-software/adanos-cli/releases"
+PyPI = "https://pypi.org/project/adanos-cli/"
 
 [project.scripts]
 adanos = "adanos_cli.main:main"
