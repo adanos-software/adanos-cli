@@ -7,12 +7,18 @@ on:
 
 jobs:
   build:
-    name: Build CLI Binary (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Build CLI Binary (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-13, macos-14]
+        include:
+          - runner: ubuntu-latest
+            target: linux-x86_64
+          - runner: macos-15-intel
+            target: darwin-x86_64
+          - runner: macos-14
+            target: darwin-arm64
     steps:
       - uses: actions/checkout@v5
         with:
@@ -33,8 +39,9 @@ jobs:
       - name: Upload binary artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cli-binaries-${{ matrix.os }}
-          path: dist-binaries/*
+          name: cli-binary-${{ matrix.target }}
+          if-no-files-found: error
+          path: dist-binaries/adanos-cli-*.tar.gz
 
   release:
     name: Release CLI Binaries
@@ -81,6 +88,8 @@ jobs:
     name: Generate Homebrew Formula
     needs: [release]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -124,3 +133,9 @@ jobs:
         with:
           name: homebrew-formula
           path: dist/homebrew/adanos-cli.rb
+
+      - name: Attach Homebrew formula to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: dist/homebrew/adanos-cli.rb

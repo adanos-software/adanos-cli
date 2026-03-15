@@ -5,6 +5,13 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.20.2] - 2026-03-15
+
+### Changed
+- PyPI package metadata now points `Homepage` to `https://adanos.org` while keeping API documentation under `https://api.adanos.org/docs`.
+- Release binary automation now uses supported GitHub macOS runners for both Intel and Apple Silicon builds.
+- Homebrew formula output is now attached directly to each published GitHub Release alongside the binary archives.
+
 ## [1.20.1] - 2026-03-15
 
 ### Changed
