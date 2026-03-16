@@ -42,7 +42,7 @@ def render_formula(
   end
 
   test do
-    assert_match "adanos", shell_output("#{bin}/adanos --help")
+    assert_match "adanos", shell_output("#{{bin}}/adanos --help")
   end
 end
 """
