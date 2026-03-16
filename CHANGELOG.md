@@ -5,6 +5,12 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.20.3] - 2026-03-16
+
+### Fixed
+- Standalone release binaries now boot through a package-safe PyInstaller entry point instead of failing on relative imports.
+- Shell installer checksum verification now accepts the `release-upload/` paths emitted by the binary release workflow.
+
 ## [1.20.2] - 2026-03-15
 
 ### Changed
