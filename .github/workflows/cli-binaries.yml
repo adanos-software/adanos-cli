@@ -58,7 +58,7 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
 
       - name: Download binary artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: release-artifacts
 
@@ -82,10 +82,9 @@ jobs:
           ls -la release-upload
 
       - name: Publish release assets
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.release.tag_name }}
-          files: release-upload/*
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" release-upload/* --clobber
 
   homebrew-formula:
     name: Generate Homebrew Formula
@@ -101,7 +100,7 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
 
       - name: Download binary artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: formula-artifacts
 
@@ -140,10 +139,9 @@ jobs:
           path: dist/homebrew/adanos-cli.rb
 
       - name: Attach Homebrew formula to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.release.tag_name }}
-          files: dist/homebrew/adanos-cli.rb
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/homebrew/adanos-cli.rb --clobber
 
       - name: Checkout Homebrew tap repository
         if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
