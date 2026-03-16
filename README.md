@@ -17,6 +17,31 @@ The CLI is versioned independently from the API backend. It targets the public A
 pipx install adanos-cli
 ```
 
+### cURL
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/adanos-software/adanos-cli/main/install.sh | bash
+```
+
+The shell installer downloads the latest standalone binary for:
+- macOS arm64
+- macOS x86_64
+- Linux x86_64
+
+By default it installs to `~/.local/bin`. Override with `ADANOS_INSTALL_DIR=/your/path`.
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install adanos-software/tap/adanos-cli
+```
+
+### PowerShell (Windows)
+
+```powershell
+irm https://raw.githubusercontent.com/adanos-software/adanos-cli/main/install.ps1 | iex
+```
+
 ### Plain pip
 
 ```bash
@@ -172,7 +197,7 @@ Tagged releases build standalone archives for:
 - macOS x86_64
 - Linux x86_64
 
-The repo also generates a Homebrew formula artifact for each tagged binary release.
+The repo also generates a Homebrew formula artifact for each tagged binary release and can publish it to `adanos-software/homebrew-tap` when `HOMEBREW_TAP_TOKEN` is configured.
 
 PyPI publishing also happens from this repo, not from the API monorepo.
 

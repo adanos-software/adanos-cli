@@ -93,6 +93,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -142,3 +144,27 @@ jobs:
         with:
           tag_name: ${{ github.event.release.tag_name }}
           files: dist/homebrew/adanos-cli.rb
+
+      - name: Checkout Homebrew tap repository
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
+        uses: actions/checkout@v5
+        with:
+          repository: adanos-software/homebrew-tap
+          token: ${{ env.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Publish formula to Homebrew tap
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
+        run: |
+          mkdir -p homebrew-tap/Formula
+          cp dist/homebrew/adanos-cli.rb homebrew-tap/Formula/adanos-cli.rb
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/adanos-cli.rb
+          if git diff --cached --quiet; then
+            echo "Homebrew tap already up to date."
+            exit 0
+          fi
+          git commit -m "Update adanos-cli formula for ${{ github.event.release.tag_name }}"
+          git push origin HEAD:main
