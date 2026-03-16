@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import stat
+import subprocess
 import sys
 from pathlib import Path
 
@@ -63,6 +66,13 @@ def test_build_pyinstaller_command_uses_repo_local_paths(tmp_path) -> None:
     assert str(CLI_SRC) in command
     assert str(CLI_ENTRYPOINT) == command[-1]
     assert "stocksentiment" in command
+
+
+def test_pyinstaller_entrypoint_imports_main() -> None:
+    entrypoint = CLI_ENTRYPOINT.read_text(encoding="utf-8")
+
+    assert "from adanos_cli.main import main" in entrypoint
+    assert "raise SystemExit(main())" in entrypoint
 
 
 def test_render_formula_includes_install_and_test_blocks() -> None:
@@ -141,3 +151,34 @@ def test_readme_documents_shell_homebrew_and_powershell_install() -> None:
     assert "curl -fsSL https://raw.githubusercontent.com/adanos-software/adanos-cli/main/install.sh | bash" in readme
     assert "brew install adanos-software/tap/adanos-cli" in readme
     assert "irm https://raw.githubusercontent.com/adanos-software/adanos-cli/main/install.ps1 | iex" in readme
+
+
+def test_install_shell_script_accepts_release_upload_checksum_prefix(tmp_path) -> None:
+    archive_path = tmp_path / "adanos-darwin-arm64.tar.gz"
+    archive_path.write_bytes(b"fake-archive")
+
+    checksum = subprocess.check_output(
+        ["shasum", "-a", "256", str(archive_path)],
+        text=True,
+    ).split()[0]
+    checksums_path = tmp_path / "SHA256SUMS.txt"
+    checksums_path.write_text(
+        f"{checksum}  release-upload/{archive_path.name}\n",
+        encoding="utf-8",
+    )
+
+    script_text = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
+    script_without_main = script_text.rsplit('main "$@"', 1)[0]
+    harness_path = tmp_path / "install-harness.sh"
+    harness_path.write_text(
+        script_without_main
+        + f'\nverify_checksum "{archive_path}" "{checksums_path}" "{archive_path.name}"\n',
+        encoding="utf-8",
+    )
+    harness_path.chmod(harness_path.stat().st_mode | stat.S_IXUSR)
+
+    subprocess.run(
+        ["bash", str(harness_path)],
+        check=True,
+        env={**os.environ, "HOME": str(tmp_path)},
+    )

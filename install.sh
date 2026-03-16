@@ -50,7 +50,7 @@ verify_checksum() {
   checksums_path="$2"
   asset_name="$3"
 
-  expected="$(grep " ${asset_name}\$" "$checksums_path" | awk '{print $1}')"
+  expected="$(awk -v asset="$asset_name" '$2 ~ ("(^|/)" asset "$") {print $1; exit}' "$checksums_path")"
   [ -n "$expected" ] || fail "could not find checksum for ${asset_name}"
 
   if command -v shasum >/dev/null 2>&1; then

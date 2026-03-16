@@ -15,7 +15,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLI_SRC = REPO_ROOT / "src"
-CLI_ENTRYPOINT = CLI_SRC / "adanos_cli" / "__main__.py"
+CLI_ENTRYPOINT = REPO_ROOT / "scripts" / "pyinstaller_entrypoint.py"
 PACKAGE_INIT = CLI_SRC / "adanos_cli" / "__init__.py"
 
 
