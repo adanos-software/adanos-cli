@@ -115,6 +115,14 @@ Request a recovery email for an existing account:
 adanos onboard recover --email you@example.com
 ```
 
+Start a new signup from the CLI:
+
+```bash
+adanos onboard register --name "Jane Doe" --email "jane@example.com" --purpose "Trading research"
+# then redeem the one-time token from the verification email
+adanos onboard redeem --token kt_xxx --save
+```
+
 Use profiles:
 
 ```bash

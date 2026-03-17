@@ -5,6 +5,11 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.20.5] - 2026-03-17
+
+### Changed
+- Updated CLI onboarding to the live email-first auth flow: `register` now waits for verification instructions by email, and `redeem` now uses the new secure token redemption endpoint.
+
 ## [1.20.4] - 2026-03-17
 
 ### Added

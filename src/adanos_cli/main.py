@@ -95,6 +95,7 @@ def _print_onboarding_guide(base_url: str, *, has_api_key: bool = False) -> None
     print("   adanos onboard wizard")
     print("3) Manual alternative:")
     print('   adanos onboard register --name "Your Name" --email "you@example.com" --purpose "CLI usage for stocks and crypto"')
+    print("   # wait for the email, then redeem the one-time token")
     print("   adanos onboard redeem --token <delivery_token> --save")
     print("4) If you lost access to an existing key:")
     print('   adanos onboard recover --email "you@example.com"')
@@ -153,7 +154,7 @@ def _print_welcome_screen(base_url: str, *, has_api_key: bool) -> None:
     else:
         print(_style("Setup in 2 steps:", fg="yellow", bold=True))
         print("  1) adanos onboard wizard")
-        print("  2) or manual: adanos onboard register ... + adanos onboard redeem --token ... --save")
+        print("  2) or manual: adanos onboard register ... then redeem the emailed token")
     print("")
     print(_style("Core commands:", fg="cyan", bold=True))
     print("  adanos stock <TICKER> --days 7")
@@ -670,6 +671,7 @@ def _capabilities_payload(base_url: str, *, has_api_key: bool) -> dict[str, Any]
             "setup": [
                 "adanos onboard wizard",
                 "adanos onboard register --name ... --email ... --purpose ...",
+                "check email for the one-time token",
                 "adanos onboard redeem --token <delivery_token> --save",
             ],
             "alternatives": [
@@ -913,7 +915,7 @@ def _request_onboard_register(base_url: str, payload: dict[str, str]) -> tuple[i
 
 def _request_onboard_redeem(base_url: str, token: str) -> tuple[int, dict[str, Any] | None, str]:
     with httpx.Client(base_url=base_url, timeout=30.0) as http:
-        response = http.get(f"/auth/v1/key/{token}")
+        response = http.post("/auth/v1/key/redeem", json={"token": token})
     data = _decode_json_dict(response)
     message = _extract_error_message(response)
     return response.status_code, data, message
@@ -1533,12 +1535,12 @@ def _run_onboard_register(args: Namespace, base_url: str, *, json_mode: bool) ->
         payload["company_name"] = args.company_name
 
     status_code, data, message = _request_onboard_register(base_url, payload)
-    if status_code != 201:
+    if status_code not in {200, 202}:
         _emit_error(
             json_mode=json_mode,
             code="onboard_register_failed",
             message=message,
-            hint="If you already registered, use your existing key or contact support@adanos.org",
+            hint="If you already registered, check your email or use `adanos onboard recover --email ...`",
             status_code=status_code,
         )
         return 1
@@ -1552,9 +1554,6 @@ def _run_onboard_register(args: Namespace, base_url: str, *, json_mode: bool) ->
         )
         return 1
 
-    token = str(data.get("delivery_token") or "")
-    token_expires_at = str(data.get("token_expires_at") or "")
-    plan = str(data.get("plan") or "free")
     email = str(data.get("email") or args.email)
 
     if json_mode:
@@ -1567,14 +1566,11 @@ def _run_onboard_register(args: Namespace, base_url: str, *, json_mode: bool) ->
             )
         )
     else:
-        print("Registration completed.")
+        print("Registration accepted.")
         print(f"Email: {email}")
-        print(f"Plan: {plan}")
-        print(f"Token expires at: {token_expires_at}")
-        print("Delivery token:")
-        print(token)
+        print(str(data.get("message") or "Check your email for the secure verification link."))
         print("Next command:")
-        print(f"adanos onboard redeem --token {token} --save")
+        print("adanos onboard redeem --token <delivery_token> --save")
 
     return 0
 
@@ -1685,7 +1681,7 @@ def _run_onboard_wizard(args: Namespace, base_url: str, *, json_mode: bool, runt
             json_mode=True,
             code="onboard_wizard_unsupported",
             message="Interactive wizard is only available in text mode",
-            hint="Use `adanos onboard register ...` + `adanos onboard redeem ... --save` in JSON workflows",
+            hint="Use `adanos onboard register ...`, then redeem the emailed token with `adanos onboard redeem ... --save`",
         )
         return 2
 
@@ -1694,7 +1690,7 @@ def _run_onboard_wizard(args: Namespace, base_url: str, *, json_mode: bool, runt
             json_mode=False,
             code="onboard_wizard_unsupported",
             message="Interactive wizard requires a TTY terminal",
-            hint="Use explicit commands: onboard register / onboard redeem",
+            hint="Use explicit commands: onboard register, then onboard redeem",
         )
         return 2
 
@@ -1726,7 +1722,7 @@ def _run_onboard_wizard(args: Namespace, base_url: str, *, json_mode: bool, runt
     print("")
     print("Registering your account...")
     status_code, data, message = _request_onboard_register(base_url, payload)
-    if status_code != 201 or not isinstance(data, dict):
+    if status_code not in {200, 202} or not isinstance(data, dict):
         _emit_error(
             json_mode=False,
             code="onboard_register_failed",
@@ -1736,22 +1732,17 @@ def _run_onboard_wizard(args: Namespace, base_url: str, *, json_mode: bool, runt
         )
         return 1
 
-    delivery_token = str(data.get("delivery_token") or "").strip()
-    token_expires = str(data.get("token_expires_at") or "unknown")
-    print("Registration completed.")
-    print(f"Token expires at: {token_expires}")
-    if delivery_token:
-        print("Delivery token received.")
-    else:
-        print("No delivery token in response. Use token from email.")
+    print("Registration accepted.")
+    print(str(data.get("message") or "Check your email for the secure verification link."))
 
     print("")
-    if not _prompt_yes_no("Redeem API key now?", default_yes=True):
+    if not _prompt_yes_no("Do you already have the delivery token from your email?", default_yes=False):
         print("Next step:")
+        print("  Check your email for the secure verification link.")
         print("  adanos onboard redeem --token <delivery_token> --save")
         return 0
 
-    token = _prompt_non_empty("Delivery token", default=delivery_token if delivery_token else None)
+    token = _prompt_non_empty("Delivery token")
     print("Redeeming token...")
     redeem_status, redeem_data, redeem_message = _request_onboard_redeem(base_url, token)
     if redeem_status != 200 or not isinstance(redeem_data, dict):
@@ -1826,7 +1817,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_onboard_wizard.add_argument("--json", action="store_true")
     p_onboard_wizard.set_defaults(_handler="onboard_wizard")
 
-    p_onboard_register = onboard_subs.add_parser("register", help="Register and get a delivery token")
+    p_onboard_register = onboard_subs.add_parser("register", help="Start email verification for a new API key")
     p_onboard_register.add_argument("--name", required=True, help="Your full name")
     p_onboard_register.add_argument("--email", required=True, help="Your email address")
     p_onboard_register.add_argument("--purpose", required=True, help="How you will use the API")
@@ -1834,7 +1825,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_onboard_register.add_argument("--json", action="store_true")
     p_onboard_register.set_defaults(_handler="onboard_register")
 
-    p_onboard_redeem = onboard_subs.add_parser("redeem", help="Redeem delivery token to get API key")
+    p_onboard_redeem = onboard_subs.add_parser("redeem", help="Redeem the one-time token from your email to get the API key")
     p_onboard_redeem.add_argument("--token", required=True, help="One-time delivery token (kt_...)")
     p_onboard_redeem.add_argument("--save", action="store_true", help="Save API key directly into local config")
     p_onboard_redeem.add_argument("--json", action="store_true")
@@ -3411,6 +3402,7 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
                             "steps": [
                                 "adanos onboard wizard",
                                 'adanos onboard register --name "Your Name" --email "you@example.com" --purpose "CLI usage for stocks and crypto"',
+                                "check email for the one-time token",
                                 "adanos onboard redeem --token <delivery_token> --save",
                                 'adanos onboard recover --email "you@example.com"',
                             ],

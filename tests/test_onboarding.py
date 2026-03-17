@@ -123,18 +123,14 @@ def test_onboard_wizard_accepts_existing_key(tmp_path, monkeypatch) -> None:
 
 
 @respx.mock
-def test_onboard_register_returns_token_and_next_step(capsys) -> None:
-    token = "kt_a8Kj2mNpQrStUvWxYz1234567890AbCdEfGhIjKlMnO"
+def test_onboard_register_accepts_email_verification_flow(capsys) -> None:
     respx.post("https://api.adanos.org/auth/v1/register").mock(
         return_value=httpx.Response(
-            201,
+            202,
             json={
                 "success": True,
-                "message": "Check your email to retrieve your API key.",
-                "delivery_token": token,
-                "token_expires_at": "2026-02-05T15:40:00Z",
-                "plan": "free",
-                "name": "Alex Schneider",
+                "action": "accepted",
+                "message": "If your request is valid, check your email for a one-time link to retrieve your API key.",
                 "email": "alex@example.com",
             },
         )
@@ -154,9 +150,9 @@ def test_onboard_register_returns_token_and_next_step(capsys) -> None:
     )
     out = capsys.readouterr().out
     assert rc == 0
-    assert "Registration completed." in out
-    assert token in out
-    assert f"adanos onboard redeem --token {token} --save" in out
+    assert "Registration accepted." in out
+    assert "check your email" in out.lower()
+    assert "adanos onboard redeem --token <delivery_token> --save" in out
 
 
 @respx.mock
@@ -212,7 +208,7 @@ def test_onboard_redeem_save_writes_config(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(cli_config, "CONFIG_PATH", cfg_path)
     monkeypatch.setattr(cli_config, "CREDENTIALS_PATH", credentials_path)
 
-    respx.get(f"https://api.adanos.org/auth/v1/key/{token}").mock(
+    respx.post("https://api.adanos.org/auth/v1/key/redeem", json={"token": token}).mock(
         return_value=httpx.Response(
             200,
             json={
@@ -235,3 +231,42 @@ def test_onboard_redeem_save_writes_config(tmp_path, monkeypatch) -> None:
     credentials = json.loads(credentials_path.read_text(encoding="utf-8"))
     assert credentials["active_profile"] == "default"
     assert credentials["profiles"]["default"]["api_key"] == "adanos_key_abcdefghijklmnopqrstuvwxyz123456"
+
+
+@respx.mock
+def test_onboard_wizard_stops_after_register_until_email_arrives(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli_main, "is_interactive", lambda: True)
+    respx.post("https://api.adanos.org/auth/v1/register").mock(
+        return_value=httpx.Response(
+            202,
+            json={
+                "success": True,
+                "action": "accepted",
+                "message": "If your request is valid, check your email for a one-time link to retrieve your API key.",
+                "email": "alex@example.com",
+            },
+        )
+    )
+
+    answers = iter([
+        "n",
+        "Alex Example",
+        "alex@example.com",
+        "CLI usage for stocks and crypto",
+        "",
+        "n",
+    ])
+
+    def fake_input(prompt: str = "") -> str:
+        return next(answers)
+
+    monkeypatch.setattr("builtins.input", fake_input)
+
+    rc = cli_main.main(["onboard", "wizard"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "Registration accepted." in out
+    assert "Check your email for the secure verification link." in out
+    assert "adanos onboard redeem --token <delivery_token> --save" in out
