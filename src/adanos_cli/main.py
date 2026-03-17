@@ -67,6 +67,7 @@ from .watchlists import (
 
 SUPPORT_CONTACT_EMAIL = "support@adanos.org"
 PAID_ACCOUNT_TYPES = {"hobby", "professional"}
+DEFAULT_RECOVERY_REQUEST_URL = "https://adanos.org/api/recover"
 
 
 def _load_sdk_client_class() -> Any:
@@ -95,7 +96,9 @@ def _print_onboarding_guide(base_url: str, *, has_api_key: bool = False) -> None
     print("3) Manual alternative:")
     print('   adanos onboard register --name "Your Name" --email "you@example.com" --purpose "CLI usage for stocks and crypto"')
     print("   adanos onboard redeem --token <delivery_token> --save")
-    print("4) Start using the API:")
+    print("4) If you lost access to an existing key:")
+    print('   adanos onboard recover --email "you@example.com"')
+    print("5) Start using the API:")
     print('   adanos ask "How does TSLA look?"')
     print(f"API base URL: {base_url}")
 
@@ -916,6 +919,14 @@ def _request_onboard_redeem(base_url: str, token: str) -> tuple[int, dict[str, A
     return response.status_code, data, message
 
 
+def _request_onboard_recover(recovery_url: str, payload: dict[str, str]) -> tuple[int, dict[str, Any] | None, str]:
+    with httpx.Client(timeout=30.0) as http:
+        response = http.post(recovery_url, json=payload)
+    data = _decode_json_dict(response)
+    message = _extract_error_message(response)
+    return response.status_code, data, message
+
+
 def _request_account_status(
     base_url: str, api_key: str, *, timeout_s: float = 30.0
 ) -> tuple[int, dict[str, Any] | None, str, dict[str, str]]:
@@ -1628,6 +1639,46 @@ def _run_onboard_redeem(args: Namespace, base_url: str, *, json_mode: bool) -> i
     return 0
 
 
+def _run_onboard_recover(args: Namespace, *, json_mode: bool) -> int:
+    recovery_url = str(args.recovery_url or DEFAULT_RECOVERY_REQUEST_URL).strip()
+    status_code, data, message = _request_onboard_recover(recovery_url, {"email": args.email})
+    if status_code not in {200, 202}:
+        _emit_error(
+            json_mode=json_mode,
+            code="onboard_recover_failed",
+            message=message if message else "Recovery request failed",
+            hint="Retry later or open https://adanos.org/key to use the hosted recovery form.",
+            status_code=status_code,
+        )
+        return 1
+
+    if not isinstance(data, dict) or data.get("success") is not True:
+        _emit_error(
+            json_mode=json_mode,
+            code="onboard_recover_failed",
+            message="Response did not include structured recovery data",
+            status_code=status_code,
+        )
+        return 1
+
+    if json_mode:
+        print_json(
+            with_json_metadata(
+                data,
+                kind="onboard_recovery",
+                command="onboard",
+                subcommand="recover",
+            )
+        )
+    else:
+        print("Recovery request accepted.")
+        print(str(data.get("message") or "If an account exists, further recovery instructions will be sent separately."))
+        print("Next step:")
+        print("  Check your email for the secure recovery link.")
+
+    return 0
+
+
 def _run_onboard_wizard(args: Namespace, base_url: str, *, json_mode: bool, runtime_has_key: bool) -> int:
     if json_mode:
         _emit_error(
@@ -1788,6 +1839,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_onboard_redeem.add_argument("--save", action="store_true", help="Save API key directly into local config")
     p_onboard_redeem.add_argument("--json", action="store_true")
     p_onboard_redeem.set_defaults(_handler="onboard_redeem")
+
+    p_onboard_recover = onboard_subs.add_parser("recover", help="Request a recovery email for an existing API key")
+    p_onboard_recover.add_argument("--email", required=True, help="Registered email address for the API account")
+    p_onboard_recover.add_argument("--recovery-url", help=argparse.SUPPRESS)
+    p_onboard_recover.add_argument("--json", action="store_true")
+    p_onboard_recover.set_defaults(_handler="onboard_recover")
 
     p_onboard.set_defaults(_handler="onboard_guide")
 
@@ -2111,6 +2168,7 @@ def _requires_api_key(args: Namespace) -> bool:
         "onboard_wizard",
         "onboard_register",
         "onboard_redeem",
+        "onboard_recover",
         "auth_login",
         "auth_logout",
         "auth_list",
@@ -3354,6 +3412,7 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
                                 "adanos onboard wizard",
                                 'adanos onboard register --name "Your Name" --email "you@example.com" --purpose "CLI usage for stocks and crypto"',
                                 "adanos onboard redeem --token <delivery_token> --save",
+                                'adanos onboard recover --email "you@example.com"',
                             ],
                         },
                     },
@@ -3379,6 +3438,9 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
 
     if handler == "onboard_redeem":
         return _run_onboard_redeem(args, runtime_cfg.base_url, json_mode=args.json)
+
+    if handler == "onboard_recover":
+        return _run_onboard_recover(args, json_mode=args.json)
 
     if _requires_api_key(args) and not runtime_cfg.api_key:
         if args.json:

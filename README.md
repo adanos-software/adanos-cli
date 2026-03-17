@@ -109,6 +109,12 @@ Persist a key locally:
 adanos login --api-key sk_live_xxx
 ```
 
+Request a recovery email for an existing account:
+
+```bash
+adanos onboard recover --email you@example.com
+```
+
 Use profiles:
 
 ```bash

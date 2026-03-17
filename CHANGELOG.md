@@ -5,6 +5,11 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.20.4] - 2026-03-17
+
+### Added
+- Added `adanos onboard recover --email ...` so existing users can trigger the secure email-based recovery flow from the CLI without exposing recovery tokens in terminal output.
+
 ## [1.20.3] - 2026-03-16
 
 ### Fixed

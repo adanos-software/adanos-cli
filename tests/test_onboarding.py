@@ -76,6 +76,7 @@ def test_onboard_guide_is_cli_first(capsys) -> None:
     assert "adanos login --api-key sk_live_xxx" in out
     assert "adanos onboard wizard" in out
     assert "adanos onboard register" in out
+    assert "adanos onboard recover" in out
     assert "curl -s" not in out
 
 
@@ -156,6 +157,48 @@ def test_onboard_register_returns_token_and_next_step(capsys) -> None:
     assert "Registration completed." in out
     assert token in out
     assert f"adanos onboard redeem --token {token} --save" in out
+
+
+@respx.mock
+def test_onboard_recover_requests_email_confirmation(capsys) -> None:
+    respx.post("https://adanos.org/api/recover").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "success": True,
+                "action": "accepted",
+                "message": "If an active account exists for this email, further recovery instructions will be sent separately.",
+            },
+        )
+    )
+
+    rc = cli_main.main(["onboard", "recover", "--email", "alex@example.com"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Recovery request accepted." in out
+    assert "Check your email for the secure recovery link." in out
+
+
+@respx.mock
+def test_onboard_recover_json_outputs_structured_response(capsys) -> None:
+    respx.post("https://adanos.org/api/recover").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "success": True,
+                "action": "accepted",
+                "message": "If an active account exists for this email, further recovery instructions will be sent separately.",
+            },
+        )
+    )
+
+    rc = cli_main.main(["--output", "json", "onboard", "recover", "--email", "alex@example.com", "--json"])
+    captured = capsys.readouterr()
+    assert rc == 0
+    payload = json.loads(captured.out)
+    assert payload["kind"] == "onboard_recovery"
+    assert payload["success"] is True
+    assert payload["action"] == "accepted"
 
 
 @respx.mock
