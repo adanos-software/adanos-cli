@@ -43,6 +43,13 @@ def _as_float(value: Any) -> float | None:
     return None
 
 
+def _resolve_volume_value(data: dict[str, Any], volume_key: str) -> Any:
+    value = data.get(volume_key)
+    if value is None and volume_key == "mentions":
+        return data.get("total_mentions")
+    return value
+
+
 def _derive_signal(sentiment: float | None, *, buzz: float | None, platforms: int) -> str:
     if sentiment is None:
         if (buzz or 0) >= 85 and platforms >= 2:
@@ -421,11 +428,11 @@ def build_search_fallback_report(client: Any, query: str) -> dict[str, Any]:
     return {
         "kind": "search_fallback",
         "query": query,
-        "news_stocks": _call_safe(lambda: client.news.search(query)),
-        "reddit_stocks": _call_safe(lambda: client.reddit.search(query)),
-        "x_stocks": _call_safe(lambda: client.x.search(query)),
-        "polymarket_stocks": _call_safe(lambda: client.polymarket.search(query)),
-        "reddit_crypto": _call_safe(lambda: client.crypto.search(query)),
+        "news_stocks": _call_safe(lambda: client.news.search(query, days=7, limit=10)),
+        "reddit_stocks": _call_safe(lambda: client.reddit.search(query, days=7, limit=10)),
+        "x_stocks": _call_safe(lambda: client.x.search(query, days=7, limit=10)),
+        "polymarket_stocks": _call_safe(lambda: client.polymarket.search(query, days=7, limit=10)),
+        "reddit_crypto": _call_safe(lambda: client.crypto.search(query, days=7, limit=10)),
     }
 
 
@@ -442,7 +449,7 @@ def _format_source(name: str, payload: dict[str, Any], *, mentions_key: str, sen
 
     buzz = fmt_num(data.get("buzz_score"))
     trend = data.get("trend") or "n/a"
-    mentions = fmt_num(data.get(mentions_key))
+    mentions = fmt_num(_resolve_volume_value(data, mentions_key))
     sentiment = fmt_num(data.get(sentiment_key))
     return f"- {name}: buzz={buzz}, trend={trend}, volume={mentions}, sentiment={sentiment}"
 
@@ -450,9 +457,9 @@ def _format_source(name: str, payload: dict[str, Any], *, mentions_key: str, sen
 def format_stock_report(report: dict[str, Any]) -> str:
     lines = [
         f"Stock report for {report['ticker']} ({report['days']}d)",
-        _format_source("News Stocks", report["news"], mentions_key="total_mentions"),
-        _format_source("Reddit Stocks", report["reddit"], mentions_key="total_mentions"),
-        _format_source("X/Twitter Stocks", report["x"], mentions_key="total_mentions"),
+        _format_source("News Stocks", report["news"], mentions_key="mentions"),
+        _format_source("Reddit Stocks", report["reddit"], mentions_key="mentions"),
+        _format_source("X/Twitter Stocks", report["x"], mentions_key="mentions"),
         _format_source("Polymarket Stocks", report["polymarket"], mentions_key="trade_count"),
     ]
 
@@ -471,7 +478,7 @@ def format_stock_report(report: dict[str, Any]) -> str:
 def format_crypto_report(report: dict[str, Any]) -> str:
     lines = [
         f"Crypto report for {report['symbol']} ({report['days']}d)",
-        _format_source("Reddit Crypto", report["reddit_crypto"], mentions_key="total_mentions"),
+        _format_source("Reddit Crypto", report["reddit_crypto"], mentions_key="mentions"),
     ]
 
     search_payload = report.get("search", {})

@@ -85,7 +85,11 @@ def _reddit_stocks_explain(client: Any, args: Namespace) -> Any:
 
 
 def _reddit_stocks_search(client: Any, args: Namespace) -> Any:
-    return client.reddit.search(_require_str(args, "q", "query"))
+    return client.reddit.search(
+        _require_str(args, "q", "query"),
+        days=_with_default(args.days, 7),
+        limit=_with_default(args.limit, 20),
+    )
 
 
 def _reddit_stocks_compare(client: Any, args: Namespace) -> Any:
@@ -142,7 +146,11 @@ def _news_stocks_explain(client: Any, args: Namespace) -> Any:
 
 
 def _news_stocks_search(client: Any, args: Namespace) -> Any:
-    return client.news.search(_require_str(args, "q", "query"))
+    return client.news.search(
+        _require_str(args, "q", "query"),
+        days=_with_default(args.days, 7),
+        limit=_with_default(args.limit, 20),
+    )
 
 
 def _news_stocks_compare(client: Any, args: Namespace) -> Any:
@@ -175,7 +183,11 @@ def _reddit_crypto_token(client: Any, args: Namespace) -> Any:
 
 
 def _reddit_crypto_search(client: Any, args: Namespace) -> Any:
-    return client.crypto.search(_require_str(args, "q", "query"))
+    return client.crypto.search(
+        _require_str(args, "q", "query"),
+        days=_with_default(args.days, 7),
+        limit=_with_default(args.limit, 20),
+    )
 
 
 def _reddit_crypto_compare(client: Any, args: Namespace) -> Any:
@@ -222,7 +234,11 @@ def _x_stocks_stock(client: Any, args: Namespace) -> Any:
 
 
 def _x_stocks_search(client: Any, args: Namespace) -> Any:
-    return client.x.search(_require_str(args, "q", "query"))
+    return client.x.search(
+        _require_str(args, "q", "query"),
+        days=_with_default(args.days, 7),
+        limit=_with_default(args.limit, 20),
+    )
 
 
 def _x_stocks_compare(client: Any, args: Namespace) -> Any:
@@ -269,7 +285,11 @@ def _polymarket_stocks_stock(client: Any, args: Namespace) -> Any:
 
 
 def _polymarket_stocks_search(client: Any, args: Namespace) -> Any:
-    return client.polymarket.search(_require_str(args, "q", "query"))
+    return client.polymarket.search(
+        _require_str(args, "q", "query"),
+        days=_with_default(args.days, 7),
+        limit=_with_default(args.limit, 20),
+    )
 
 
 def _polymarket_stocks_compare(client: Any, args: Namespace) -> Any:
@@ -302,7 +322,12 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "news-stocks.stock.explain", "/news/stocks/v1/stock/{ticker}/explain", "AI explanation for News stock trend", ("ticker",), tuple(), _news_stocks_explain
     ),
     "news-stocks.search": EndpointSpec(
-        "news-stocks.search", "/news/stocks/v1/search", "Search News stocks", ("q",), tuple(), _news_stocks_search
+        "news-stocks.search",
+        "/news/stocks/v1/search",
+        "Search News stocks",
+        ("q",),
+        ("days", "limit"),
+        _news_stocks_search,
     ),
     "news-stocks.compare": EndpointSpec(
         "news-stocks.compare", "/news/stocks/v1/compare", "Compare News stocks", ("tickers",), ("days",), _news_stocks_compare
@@ -330,7 +355,12 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "reddit-stocks.stock.explain", "/reddit/stocks/v1/stock/{ticker}/explain", "AI explanation for Reddit stock trend", ("ticker",), tuple(), _reddit_stocks_explain
     ),
     "reddit-stocks.search": EndpointSpec(
-        "reddit-stocks.search", "/reddit/stocks/v1/search", "Search Reddit stocks", ("q",), tuple(), _reddit_stocks_search
+        "reddit-stocks.search",
+        "/reddit/stocks/v1/search",
+        "Search Reddit stocks",
+        ("q",),
+        ("days", "limit"),
+        _reddit_stocks_search,
     ),
     "reddit-stocks.compare": EndpointSpec(
         "reddit-stocks.compare", "/reddit/stocks/v1/compare", "Compare Reddit stocks", ("tickers",), ("days",), _reddit_stocks_compare
@@ -349,7 +379,12 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "reddit-crypto.token", "/reddit/crypto/v1/token/{symbol}", "Crypto token detail on Reddit", ("symbol",), ("days",), _reddit_crypto_token
     ),
     "reddit-crypto.search": EndpointSpec(
-        "reddit-crypto.search", "/reddit/crypto/v1/search", "Search Reddit crypto tokens", ("q",), tuple(), _reddit_crypto_search
+        "reddit-crypto.search",
+        "/reddit/crypto/v1/search",
+        "Search Reddit crypto tokens",
+        ("q",),
+        ("days", "limit"),
+        _reddit_crypto_search,
     ),
     "reddit-crypto.compare": EndpointSpec(
         "reddit-crypto.compare", "/reddit/crypto/v1/compare", "Compare Reddit crypto tokens", ("symbols",), ("days",), _reddit_crypto_compare
@@ -374,7 +409,12 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "x-stocks.stock", "/x/stocks/v1/stock/{ticker}", "Stock detail on X/Twitter", ("ticker",), ("days",), _x_stocks_stock
     ),
     "x-stocks.search": EndpointSpec(
-        "x-stocks.search", "/x/stocks/v1/search", "Search X/Twitter stocks", ("q",), tuple(), _x_stocks_search
+        "x-stocks.search",
+        "/x/stocks/v1/search",
+        "Search X/Twitter stocks",
+        ("q",),
+        ("days", "limit"),
+        _x_stocks_search,
     ),
     "x-stocks.compare": EndpointSpec(
         "x-stocks.compare", "/x/stocks/v1/compare", "Compare X/Twitter stocks", ("tickers",), ("days",), _x_stocks_compare
@@ -399,7 +439,12 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "polymarket-stocks.stock", "/polymarket/stocks/v1/stock/{ticker}", "Stock detail on Polymarket", ("ticker",), ("days",), _polymarket_stocks_stock
     ),
     "polymarket-stocks.search": EndpointSpec(
-        "polymarket-stocks.search", "/polymarket/stocks/v1/search", "Search Polymarket stocks", ("q",), tuple(), _polymarket_stocks_search
+        "polymarket-stocks.search",
+        "/polymarket/stocks/v1/search",
+        "Search Polymarket stocks",
+        ("q",),
+        ("days", "limit"),
+        _polymarket_stocks_search,
     ),
     "polymarket-stocks.compare": EndpointSpec(
         "polymarket-stocks.compare", "/polymarket/stocks/v1/compare", "Compare Polymarket stocks", ("tickers",), ("days",), _polymarket_stocks_compare

@@ -41,7 +41,7 @@ NEWS_ENDPOINT_IDS = {
     "news-stocks.search": {
         "path": "/news/stocks/v1/search",
         "required": ("q",),
-        "optional": tuple(),
+        "optional": ("days", "limit"),
     },
     "news-stocks.compare": {
         "path": "/news/stocks/v1/compare",
@@ -88,7 +88,7 @@ def test_news_endpoint_specs_are_complete() -> None:
 
 def test_invoke_endpoint_rejects_unsupported_source() -> None:
     class DummyNews:
-        def search(self, query: str) -> dict[str, str]:
+        def search(self, query: str, *, days: int = 7, limit: int = 20) -> dict[str, str | int]:
             return {"query": query}
 
     class DummyClient:
@@ -96,6 +96,24 @@ def test_invoke_endpoint_rejects_unsupported_source() -> None:
 
     with pytest.raises(CliUsageError, match="does not support --source"):
         invoke_endpoint(DummyClient(), "news-stocks.search", Namespace(q="Tesla", source="wsj"))
+
+
+def test_invoke_endpoint_search_passes_days_and_limit() -> None:
+    class DummyNews:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, int, int]] = []
+
+        def search(self, query: str, *, days: int = 7, limit: int = 20) -> dict[str, int | str]:
+            self.calls.append((query, days, limit))
+            return {"query": query, "count": 1}
+
+    class DummyClient:
+        def __init__(self) -> None:
+            self.news = DummyNews()
+
+    client = DummyClient()
+    invoke_endpoint(client, "news-stocks.search", Namespace(q="Tesla", days=14, limit=5, source=None))
+    assert client.news.calls == [("Tesla", 14, 5)]
 
 
 def test_nlp_detects_stock_intent() -> None:

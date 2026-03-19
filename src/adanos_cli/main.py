@@ -2618,11 +2618,18 @@ def _as_float(value: Any) -> float | None:
     return None
 
 
+def _resolve_report_volume(data: dict[str, Any], volume_key: str) -> Any:
+    value = data.get(volume_key)
+    if value is None and volume_key == "mentions":
+        return data.get("total_mentions")
+    return value
+
+
 def _build_consensus_report(report: dict[str, Any]) -> dict[str, Any]:
     source_specs = (
-        ("news", "News", "total_mentions"),
-        ("reddit", "Reddit", "total_mentions"),
-        ("x", "X", "total_mentions"),
+        ("news", "News", "mentions"),
+        ("reddit", "Reddit", "mentions"),
+        ("x", "X", "mentions"),
         ("polymarket", "Polymarket", "trade_count"),
     )
     sources: list[dict[str, Any]] = []
@@ -2656,7 +2663,7 @@ def _build_consensus_report(report: dict[str, Any]) -> dict[str, Any]:
         sentiment = _as_float(data.get("sentiment_score"))
         if sentiment is None:
             sentiment = _as_float(data.get("sentiment"))
-        volume_raw = data.get(volume_key)
+        volume_raw = _resolve_report_volume(data, volume_key)
         volume = int(volume_raw) if isinstance(volume_raw, (int, float)) else 0
         trend = str(data.get("trend") or "n/a")
 
@@ -2882,9 +2889,9 @@ def _render_csv(kind: str, payload: dict[str, Any]) -> str:
     elif kind == "stock":
         rows = []
         for source_name, volume_key in (
-            ("news", "total_mentions"),
-            ("reddit", "total_mentions"),
-            ("x", "total_mentions"),
+            ("news", "mentions"),
+            ("reddit", "mentions"),
+            ("x", "mentions"),
             ("polymarket", "trade_count"),
         ):
             source_payload = payload.get(source_name)
@@ -2899,7 +2906,7 @@ def _render_csv(kind: str, payload: dict[str, Any]) -> str:
                     "ticker": payload.get("ticker"),
                     "buzz_score": data.get("buzz_score"),
                     "sentiment": data.get("sentiment_score", data.get("sentiment")),
-                    "volume": data.get(volume_key),
+                    "volume": _resolve_report_volume(data, volume_key),
                     "trend": data.get("trend"),
                 }
             )

@@ -34,13 +34,13 @@ class _RedditNS:
         return {"period_days": days, "stocks": rows}
 
     def stock(self, ticker: str, *, days: int = 7):
-        return {"ticker": ticker, "found": True, "buzz_score": 70.0, "trend": "rising", "total_mentions": 100, "sentiment_score": 0.1}
+        return {"ticker": ticker, "found": True, "buzz_score": 70.0, "trend": "rising", "mentions": 100, "total_mentions": 100, "sentiment_score": 0.1}
 
     def explain(self, ticker: str):
         return {"ticker": ticker, "explanation": f"{ticker} explanation"}
 
-    def search(self, query: str):
-        return {"query": query, "count": 1, "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}]}
+    def search(self, query: str, *, days: int = 7, limit: int = 20):
+        return {"query": query, "count": 1, "period_days": days, "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}][:limit]}
 
     def trending_sectors(self, *, days: int = 1, limit: int = 20, offset: int = 0):
         return [{"sector": "Technology", "buzz_score": 82.0}]
@@ -60,13 +60,13 @@ class _NewsNS:
         return {"period_days": days, "stocks": [{"ticker": t, "buzz_score": 72.0, "mentions": 85, "sentiment": 0.08} for t in tickers]}
 
     def stock(self, ticker: str, *, days: int = 7):
-        return {"ticker": ticker, "found": True, "buzz_score": 72.0, "trend": "stable", "total_mentions": 85, "sentiment_score": 0.08}
+        return {"ticker": ticker, "found": True, "buzz_score": 72.0, "trend": "stable", "mentions": 85, "total_mentions": 85, "sentiment_score": 0.08}
 
     def explain(self, ticker: str):
         return {"ticker": ticker, "explanation": f"{ticker} news backdrop"}
 
-    def search(self, query: str):
-        return {"query": query, "count": 1, "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}]}
+    def search(self, query: str, *, days: int = 7, limit: int = 20):
+        return {"query": query, "count": 1, "period_days": days, "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}][:limit]}
 
     def trending_sectors(self, *, days: int = 1, limit: int = 20, offset: int = 0, source=None):
         return [{"sector": "Technology", "buzz_score": 75.0}]
@@ -83,10 +83,10 @@ class _XNS:
         return {"period_days": days, "stocks": [{"ticker": t, "buzz_score": 82.0, "mentions": 200, "sentiment": 0.12} for t in tickers]}
 
     def stock(self, ticker: str, *, days: int = 7):
-        return {"ticker": ticker, "buzz_score": 82.0, "trend": "stable", "total_mentions": 200, "sentiment_score": 0.12}
+        return {"ticker": ticker, "buzz_score": 82.0, "trend": "stable", "mentions": 200, "total_mentions": 200, "sentiment_score": 0.12}
 
-    def search(self, query: str):
-        return {"query": query, "count": 1, "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}]}
+    def search(self, query: str, *, days: int = 7, limit: int = 20):
+        return {"query": query, "count": 1, "period_days": days, "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}][:limit]}
 
 
 class _PolymarketNS:
@@ -99,8 +99,8 @@ class _PolymarketNS:
     def stock(self, ticker: str, *, days: int = 7):
         return {"ticker": ticker, "found": True, "buzz_score": 79.0, "trend": "rising", "trade_count": 500, "sentiment": 0.2}
 
-    def search(self, query: str):
-        return {"query": query, "count": 1, "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}]}
+    def search(self, query: str, *, days: int = 7, limit: int = 20):
+        return {"query": query, "count": 1, "period_days": days, "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}][:limit]}
 
 
 class _CryptoNS:
@@ -111,10 +111,10 @@ class _CryptoNS:
         return {"period_days": days, "tokens": [{"symbol": s, "buzz_score": 78.0, "mentions": 1000, "sentiment": 0.05, "upvotes": 5000} for s in symbols]}
 
     def token(self, symbol: str, *, days: int = 7):
-        return {"symbol": symbol, "found": True, "buzz_score": 78.0, "total_mentions": 1000, "sentiment_score": 0.05}
+        return {"symbol": symbol, "found": True, "buzz_score": 78.0, "mentions": 1000, "total_mentions": 1000, "sentiment_score": 0.05}
 
-    def search(self, query: str):
-        return {"query": query, "count": 1, "results": [{"symbol": "BTC", "name": "Bitcoin"}]}
+    def search(self, query: str, *, days: int = 7, limit: int = 20):
+        return {"query": query, "count": 1, "period_days": days, "results": [{"symbol": "BTC", "name": "Bitcoin"}][:limit]}
 
     def stats(self):
         return {"unique_tokens": 100, "supported_tokens": 1000}
