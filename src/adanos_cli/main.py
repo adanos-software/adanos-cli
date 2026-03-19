@@ -72,12 +72,23 @@ DEFAULT_RECOVERY_REQUEST_URL = "https://adanos.org/api/recover"
 
 def _load_sdk_client_class() -> Any:
     try:
-        from stocksentiment import StockSentimentClient
-        return StockSentimentClient
-    except ImportError as exc:
+        from adanos import AdanosClient
+
+        return AdanosClient
+    except ImportError:
+        try:
+            from stocksentiment import StockSentimentClient
+
+            return StockSentimentClient
+        except ImportError as exc:
+            raise CliUsageError(
+                "Python SDK dependency missing. Install with `pipx install adanos-cli` "
+                "or `python3 -m pip install adanos`."
+            ) from exc
+    except Exception as exc:
         raise CliUsageError(
             "Python SDK dependency missing. Install with `pipx install adanos-cli` "
-            "or `python3 -m pip install social-stock-sentiment`."
+            "or `python3 -m pip install adanos`."
         ) from exc
 
 

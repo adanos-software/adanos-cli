@@ -173,10 +173,13 @@ def test_missing_python_sdk_dependency_emits_clear_usage_error(monkeypatch) -> N
     original_import = __import__
 
     def _fake_import(name, *args, **kwargs):
+        if name == "adanos":
+            raise ImportError("No module named 'adanos'")
         if name == "stocksentiment":
             raise ImportError("No module named 'stocksentiment'")
         return original_import(name, *args, **kwargs)
 
+    monkeypatch.delitem(sys.modules, "adanos", raising=False)
     monkeypatch.delitem(sys.modules, "stocksentiment", raising=False)
     monkeypatch.setattr("builtins.__import__", _fake_import)
 

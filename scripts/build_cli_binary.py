@@ -58,6 +58,8 @@ def build_pyinstaller_command(*, dist_dir: Path, build_dir: Path, spec_dir: Path
         "--paths",
         str(CLI_SRC),
         "--hidden-import",
+        "adanos",
+        "--hidden-import",
         "stocksentiment",
         str(CLI_ENTRYPOINT),
     ]

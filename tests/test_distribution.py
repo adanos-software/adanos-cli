@@ -65,6 +65,7 @@ def test_build_pyinstaller_command_uses_repo_local_paths(tmp_path) -> None:
     assert "--paths" in command
     assert str(CLI_SRC) in command
     assert str(CLI_ENTRYPOINT) == command[-1]
+    assert "adanos" in command
     assert "stocksentiment" in command
 
 
