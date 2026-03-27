@@ -1,5 +1,7 @@
 # adanos-cli
 
+[![PyPI version](https://img.shields.io/pypi/v/adanos-cli.svg)](https://pypi.org/project/adanos-cli/)
+
 `adanos-cli` is the command-line client for the [Adanos Market Sentiment API](https://api.adanos.org/docs).
 
 It is built for three use cases:
