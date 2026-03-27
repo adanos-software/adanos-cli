@@ -222,7 +222,7 @@ def _print_shell_header(base_url: str, *, has_api_key: bool, api_key_status: str
         _style("configured", fg="green", bold=True) if has_api_key else _style("not configured", fg="red", bold=True)
     )
     details = [
-        f"{_style('Adanos Finance Sentiment CLI', fg='cyan', bold=True)} {_style(f'v{__version__}', fg='magenta', bold=True)}",
+        f"{_style('Adanos Market Sentiment CLI', fg='cyan', bold=True)} {_style(f'v{__version__}', fg='magenta', bold=True)}",
         f"cwd: {_style(str(Path.cwd()), fg='white')}",
         f"api: {_style(base_url, fg='blue')}",
         f"api_key: {key_status}",
@@ -1788,7 +1788,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="adanos",
         description=(
             "Comprehensive CLI for api.adanos.org. Supports all OpenAPI endpoints for "
-            "Reddit Stocks, Reddit Crypto, X/Twitter Stocks, and Polymarket Stocks."
+            "News Stocks, Reddit Stocks, Reddit Crypto, X/Twitter Stocks, and Polymarket Stocks."
         ),
         formatter_class=argparse.RawTextHelpFormatter,
         epilog=(

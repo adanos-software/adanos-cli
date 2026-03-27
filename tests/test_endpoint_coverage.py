@@ -48,6 +48,11 @@ NEWS_ENDPOINT_IDS = {
         "required": ("tickers",),
         "optional": ("days",),
     },
+    "news-stocks.market-sentiment": {
+        "path": "/news/stocks/v1/market-sentiment",
+        "required": tuple(),
+        "optional": ("days",),
+    },
     "news-stocks.stats": {
         "path": "/news/stocks/v1/stats",
         "required": tuple(),
@@ -75,7 +80,7 @@ def test_endpoint_paths_cover_all_supported_platform_families() -> None:
 
 
 def test_endpoint_count_is_complete() -> None:
-    assert len(ENDPOINTS) == 40
+    assert len(ENDPOINTS) == 45
 
 
 def test_news_endpoint_specs_are_complete() -> None:
@@ -114,6 +119,24 @@ def test_invoke_endpoint_search_passes_days_and_limit() -> None:
     client = DummyClient()
     invoke_endpoint(client, "news-stocks.search", Namespace(q="Tesla", days=14, limit=5, source=None))
     assert client.news.calls == [("Tesla", 14, 5)]
+
+
+def test_invoke_endpoint_market_sentiment_passes_days() -> None:
+    class DummyNews:
+        def __init__(self) -> None:
+            self.calls: list[int] = []
+
+        def market_sentiment(self, *, days: int = 1) -> dict[str, int]:
+            self.calls.append(days)
+            return {"days": days}
+
+    class DummyClient:
+        def __init__(self) -> None:
+            self.news = DummyNews()
+
+    client = DummyClient()
+    invoke_endpoint(client, "news-stocks.market-sentiment", Namespace(days=9, source=None))
+    assert client.news.calls == [9]
 
 
 def test_nlp_detects_stock_intent() -> None:

@@ -96,6 +96,10 @@ def _reddit_stocks_compare(client: Any, args: Namespace) -> Any:
     return client.reddit.compare(_require_tickers(args), days=_with_default(args.days, 7))
 
 
+def _reddit_stocks_market_sentiment(client: Any, args: Namespace) -> Any:
+    return client.reddit.market_sentiment(days=_with_default(args.days, 1))
+
+
 def _reddit_stocks_stats(client: Any, args: Namespace) -> Any:
     return client.reddit.stats()
 
@@ -160,6 +164,10 @@ def _news_stocks_compare(client: Any, args: Namespace) -> Any:
     )
 
 
+def _news_stocks_market_sentiment(client: Any, args: Namespace) -> Any:
+    return client.news.market_sentiment(days=_with_default(args.days, 1))
+
+
 def _news_stocks_stats(client: Any, args: Namespace) -> Any:
     return client.news.stats()
 
@@ -192,6 +200,10 @@ def _reddit_crypto_search(client: Any, args: Namespace) -> Any:
 
 def _reddit_crypto_compare(client: Any, args: Namespace) -> Any:
     return client.crypto.compare(_require_symbols(args), days=_with_default(args.days, 7))
+
+
+def _reddit_crypto_market_sentiment(client: Any, args: Namespace) -> Any:
+    return client.crypto.market_sentiment(days=_with_default(args.days, 1))
 
 
 def _reddit_crypto_stats(client: Any, args: Namespace) -> Any:
@@ -245,6 +257,10 @@ def _x_stocks_compare(client: Any, args: Namespace) -> Any:
     return client.x.compare(_require_tickers(args), days=_with_default(args.days, 7))
 
 
+def _x_stocks_market_sentiment(client: Any, args: Namespace) -> Any:
+    return client.x.market_sentiment(days=_with_default(args.days, 1))
+
+
 def _x_stocks_stats(client: Any, args: Namespace) -> Any:
     return client.x.stats()
 
@@ -296,6 +312,10 @@ def _polymarket_stocks_compare(client: Any, args: Namespace) -> Any:
     return client.polymarket.compare(_require_tickers(args), days=_with_default(args.days, 7))
 
 
+def _polymarket_stocks_market_sentiment(client: Any, args: Namespace) -> Any:
+    return client.polymarket.market_sentiment(days=_with_default(args.days, 1))
+
+
 def _polymarket_stocks_stats(client: Any, args: Namespace) -> Any:
     return client.polymarket.stats()
 
@@ -332,6 +352,9 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     "news-stocks.compare": EndpointSpec(
         "news-stocks.compare", "/news/stocks/v1/compare", "Compare News stocks", ("tickers",), ("days",), _news_stocks_compare
     ),
+    "news-stocks.market-sentiment": EndpointSpec(
+        "news-stocks.market-sentiment", "/news/stocks/v1/market-sentiment", "Service-level News market sentiment", tuple(), ("days",), _news_stocks_market_sentiment
+    ),
     "news-stocks.stats": EndpointSpec(
         "news-stocks.stats", "/news/stocks/v1/stats", "News stocks stats", tuple(), tuple(), _news_stocks_stats
     ),
@@ -365,6 +388,9 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     "reddit-stocks.compare": EndpointSpec(
         "reddit-stocks.compare", "/reddit/stocks/v1/compare", "Compare Reddit stocks", ("tickers",), ("days",), _reddit_stocks_compare
     ),
+    "reddit-stocks.market-sentiment": EndpointSpec(
+        "reddit-stocks.market-sentiment", "/reddit/stocks/v1/market-sentiment", "Service-level Reddit market sentiment", tuple(), ("days",), _reddit_stocks_market_sentiment
+    ),
     "reddit-stocks.stats": EndpointSpec(
         "reddit-stocks.stats", "/reddit/stocks/v1/stats", "Reddit stocks stats", tuple(), tuple(), _reddit_stocks_stats
     ),
@@ -388,6 +414,9 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     ),
     "reddit-crypto.compare": EndpointSpec(
         "reddit-crypto.compare", "/reddit/crypto/v1/compare", "Compare Reddit crypto tokens", ("symbols",), ("days",), _reddit_crypto_compare
+    ),
+    "reddit-crypto.market-sentiment": EndpointSpec(
+        "reddit-crypto.market-sentiment", "/reddit/crypto/v1/market-sentiment", "Service-level Reddit crypto market sentiment", tuple(), ("days",), _reddit_crypto_market_sentiment
     ),
     "reddit-crypto.stats": EndpointSpec(
         "reddit-crypto.stats", "/reddit/crypto/v1/stats", "Reddit crypto stats", tuple(), tuple(), _reddit_crypto_stats
@@ -419,6 +448,9 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     "x-stocks.compare": EndpointSpec(
         "x-stocks.compare", "/x/stocks/v1/compare", "Compare X/Twitter stocks", ("tickers",), ("days",), _x_stocks_compare
     ),
+    "x-stocks.market-sentiment": EndpointSpec(
+        "x-stocks.market-sentiment", "/x/stocks/v1/market-sentiment", "Service-level X/Twitter market sentiment", tuple(), ("days",), _x_stocks_market_sentiment
+    ),
     "x-stocks.stats": EndpointSpec(
         "x-stocks.stats", "/x/stocks/v1/stats", "X/Twitter stocks stats", tuple(), tuple(), _x_stocks_stats
     ),
@@ -448,6 +480,9 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     ),
     "polymarket-stocks.compare": EndpointSpec(
         "polymarket-stocks.compare", "/polymarket/stocks/v1/compare", "Compare Polymarket stocks", ("tickers",), ("days",), _polymarket_stocks_compare
+    ),
+    "polymarket-stocks.market-sentiment": EndpointSpec(
+        "polymarket-stocks.market-sentiment", "/polymarket/stocks/v1/market-sentiment", "Service-level Polymarket market sentiment", tuple(), ("days",), _polymarket_stocks_market_sentiment
     ),
     "polymarket-stocks.stats": EndpointSpec(
         "polymarket-stocks.stats", "/polymarket/stocks/v1/stats", "Polymarket stocks stats", tuple(), tuple(), _polymarket_stocks_stats

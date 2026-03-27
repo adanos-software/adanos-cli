@@ -18,7 +18,7 @@ def render_formula(
     linux_x86_64_sha256: str,
 ) -> str:
     return f"""class AdanosCli < Formula
-  desc "Comprehensive CLI for the Adanos Finance Sentiment API"
+  desc "Comprehensive CLI for the Adanos Market Sentiment API"
   homepage "https://adanos.org"
   version "{version}"
 

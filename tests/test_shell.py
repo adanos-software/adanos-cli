@@ -94,7 +94,7 @@ def test_shell_command_renders_header_and_quits(tmp_path, monkeypatch, capsys) -
     out = capsys.readouterr().out
 
     assert rc == 0
-    assert "Adanos Finance Sentiment CLI v" in out
+    assert "Adanos Market Sentiment CLI v" in out
     assert "cwd:" in out
     assert "api:" in out
     assert "Quick Start" in out
