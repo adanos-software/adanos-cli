@@ -1,6 +1,6 @@
 # adanos-cli
 
-`adanos-cli` is the command-line client for the [Adanos Finance Sentiment API](https://api.adanos.org/docs).
+`adanos-cli` is the command-line client for the [Adanos Market Sentiment API](https://api.adanos.org/docs).
 
 It is built for three use cases:
 - traders who want fast stock and crypto sentiment reports
@@ -170,6 +170,7 @@ Raw endpoint access:
 ```bash
 adanos endpoint list
 adanos endpoint call reddit-stocks.trending --days 1 --limit 10
+adanos endpoint call reddit-stocks.market-sentiment --days 7
 ```
 
 ## AI / Automation

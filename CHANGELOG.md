@@ -5,6 +5,14 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.22.0] - 2026-03-27
+
+### Added
+- Added `market-sentiment` endpoint coverage across Reddit Stocks, News Stocks, Reddit Crypto, X/Twitter Stocks, and Polymarket Stocks in `adanos endpoint list` and `adanos endpoint call`.
+
+### Changed
+- Renamed CLI metadata and header text from `Adanos Finance Sentiment CLI` to `Adanos Market Sentiment CLI`.
+
 ## [1.21.0] - 2026-03-19
 
 ### Added
