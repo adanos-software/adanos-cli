@@ -245,6 +245,10 @@ def _x_stocks_stock(client: Any, args: Namespace) -> Any:
     return client.x.stock(_require_str(args, "ticker"), days=_with_default(args.days, 7))
 
 
+def _x_stocks_explain(client: Any, args: Namespace) -> Any:
+    return client.x.explain(_require_str(args, "ticker"))
+
+
 def _x_stocks_search(client: Any, args: Namespace) -> Any:
     return client.x.search(
         _require_str(args, "q", "query"),
@@ -436,6 +440,9 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     ),
     "x-stocks.stock": EndpointSpec(
         "x-stocks.stock", "/x/stocks/v1/stock/{ticker}", "Stock detail on X/Twitter", ("ticker",), ("days",), _x_stocks_stock
+    ),
+    "x-stocks.stock.explain": EndpointSpec(
+        "x-stocks.stock.explain", "/x/stocks/v1/stock/{ticker}/explain", "AI explanation for X/Twitter stock trend", ("ticker",), tuple(), _x_stocks_explain
     ),
     "x-stocks.search": EndpointSpec(
         "x-stocks.search",

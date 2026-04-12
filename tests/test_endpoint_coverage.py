@@ -80,7 +80,7 @@ def test_endpoint_paths_cover_all_supported_platform_families() -> None:
 
 
 def test_endpoint_count_is_complete() -> None:
-    assert len(ENDPOINTS) == 45
+    assert len(ENDPOINTS) == 46
 
 
 def test_news_endpoint_specs_are_complete() -> None:
@@ -89,6 +89,13 @@ def test_news_endpoint_specs_are_complete() -> None:
         assert spec.path == expected["path"]
         assert spec.required_params == expected["required"]
         assert spec.optional_params == expected["optional"]
+
+
+def test_x_explain_endpoint_spec_is_complete() -> None:
+    spec = ENDPOINTS["x-stocks.stock.explain"]
+    assert spec.path == "/x/stocks/v1/stock/{ticker}/explain"
+    assert spec.required_params == ("ticker",)
+    assert spec.optional_params == tuple()
 
 
 def test_invoke_endpoint_rejects_unsupported_source() -> None:
@@ -137,6 +144,25 @@ def test_invoke_endpoint_market_sentiment_passes_days() -> None:
     client = DummyClient()
     invoke_endpoint(client, "news-stocks.market-sentiment", Namespace(days=9, source=None))
     assert client.news.calls == [9]
+
+
+def test_invoke_endpoint_x_explain_passes_ticker() -> None:
+    class DummyX:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def explain(self, ticker: str) -> dict[str, str]:
+            self.calls.append(ticker)
+            return {"ticker": ticker, "explanation": "X context"}
+
+    class DummyClient:
+        def __init__(self) -> None:
+            self.x = DummyX()
+
+    client = DummyClient()
+    result = invoke_endpoint(client, "x-stocks.stock.explain", Namespace(ticker="NVDA", source=None))
+    assert result == {"ticker": "NVDA", "explanation": "X context"}
+    assert client.x.calls == ["NVDA"]
 
 
 def test_nlp_detects_stock_intent() -> None:

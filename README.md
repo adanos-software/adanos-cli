@@ -173,6 +173,7 @@ Raw endpoint access:
 adanos endpoint list
 adanos endpoint call reddit-stocks.trending --days 1 --limit 10
 adanos endpoint call reddit-stocks.market-sentiment --days 7
+adanos endpoint call x-stocks.stock.explain --ticker TSLA
 ```
 
 ## AI / Automation
