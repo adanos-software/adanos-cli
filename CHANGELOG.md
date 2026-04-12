@@ -5,6 +5,11 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.23.0] - 2026-04-12
+
+### Added
+- Added `x-stocks.stock.explain` endpoint coverage and X/Twitter explanation context in stock/explain reports.
+
 ## [1.22.0] - 2026-03-27
 
 ### Added

@@ -85,6 +85,9 @@ class _XNS:
     def stock(self, ticker: str, *, days: int = 7):
         return {"ticker": ticker, "buzz_score": 82.0, "trend": "stable", "mentions": 200, "total_mentions": 200, "sentiment_score": 0.12}
 
+    def explain(self, ticker: str):
+        return {"ticker": ticker, "explanation": f"{ticker} X discussion"}
+
     def search(self, query: str, *, days: int = 7, limit: int = 20):
         return {"query": query, "count": 1, "period_days": days, "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}][:limit]}
 
@@ -244,7 +247,13 @@ def test_consensus_and_explain_reports(tmp_path, monkeypatch, capsys) -> None:
     assert payload["kind"] == "explain_report"
     assert payload["profile"] == "daytrader"
     assert "MSFT" in payload["headline"]
+    assert payload["x_context"] == "MSFT X discussion"
     assert payload["consensus"]["kind"] == "consensus_report"
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "stock", "MSFT"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "X/Twitter Explain: MSFT X discussion" in out
 
 
 def test_watch_and_export_workflows(tmp_path, monkeypatch, capsys) -> None:

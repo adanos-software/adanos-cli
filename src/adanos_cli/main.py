@@ -2636,6 +2636,16 @@ def _resolve_report_volume(data: dict[str, Any], volume_key: str) -> Any:
     return value
 
 
+def _extract_report_explanation(report: dict[str, Any], key: str) -> Any:
+    payload = report.get(key)
+    if not isinstance(payload, dict):
+        return None
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return None
+    return data.get("explanation")
+
+
 def _build_consensus_report(report: dict[str, Any]) -> dict[str, Any]:
     source_specs = (
         ("news", "News", "mentions"),
@@ -2733,12 +2743,8 @@ def _build_consensus_report(report: dict[str, Any]) -> dict[str, Any]:
         "sources_covered": source_count,
         "total_volume": total_volume,
         "sources": sources,
-        "reddit_explanation": (
-            report.get("reddit_explain", {}).get("data", {}).get("explanation")
-            if isinstance(report.get("reddit_explain"), dict)
-            and isinstance(report.get("reddit_explain", {}).get("data"), dict)
-            else None
-        ),
+        "reddit_explanation": _extract_report_explanation(report, "reddit_explain"),
+        "x_explanation": _extract_report_explanation(report, "x_explain"),
     }
 
 
@@ -2768,6 +2774,9 @@ def _format_consensus_report(payload: dict[str, Any]) -> str:
     reddit_explanation = str(payload.get("reddit_explanation") or "").strip()
     if reddit_explanation:
         lines.append(f"- Reddit context: {reddit_explanation}")
+    x_explanation = str(payload.get("x_explanation") or "").strip()
+    if x_explanation:
+        lines.append(f"- X/Twitter context: {x_explanation}")
     return "\n".join(lines)
 
 
@@ -2811,6 +2820,9 @@ def _build_explain_report(consensus: dict[str, Any], *, reader_profile: str) -> 
     reddit_context = str(consensus.get("reddit_explanation") or "").strip()
     if not reddit_context:
         reddit_context = "No extra Reddit explanation was available."
+    x_context = str(consensus.get("x_explanation") or "").strip()
+    if not x_context:
+        x_context = "No extra X/Twitter explanation was available."
 
     return {
         "kind": "explain_report",
@@ -2823,6 +2835,7 @@ def _build_explain_report(consensus: dict[str, Any], *, reader_profile: str) -> 
         "evidence": evidence,
         "profile_guidance": profile_frames[reader_profile],
         "reddit_context": reddit_context,
+        "x_context": x_context,
         "consensus": consensus,
     }
 
@@ -2835,6 +2848,7 @@ def _format_explain_report(payload: dict[str, Any]) -> str:
             f"- Evidence: {payload.get('evidence', 'n/a')}",
             f"- Profile lens: {payload.get('profile_guidance', 'n/a')}",
             f"- Reddit context: {payload.get('reddit_context', 'n/a')}",
+            f"- X/Twitter context: {payload.get('x_context', 'n/a')}",
         ]
     )
 

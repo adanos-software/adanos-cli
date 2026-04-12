@@ -122,6 +122,7 @@ def build_stock_report(client: Any, ticker: str, *, days: int) -> dict[str, Any]
         "x": _call_safe(lambda: client.x.stock(symbol, days=days)),
         "polymarket": _call_safe(lambda: client.polymarket.stock(symbol, days=days)),
         "reddit_explain": _call_safe(lambda: client.reddit.explain(symbol)),
+        "x_explain": _call_safe(lambda: client.x.explain(symbol)),
     }
 
 
@@ -463,13 +464,14 @@ def format_stock_report(report: dict[str, Any]) -> str:
         _format_source("Polymarket Stocks", report["polymarket"], mentions_key="trade_count"),
     ]
 
-    explain = report.get("reddit_explain", {})
-    if explain.get("ok") and isinstance(explain.get("data"), dict):
-        text = str(explain["data"].get("explanation") or "").strip()
-        if text:
-            lines.append("- Reddit Explain: " + text)
-    elif not explain.get("ok"):
-        lines.append(f"- Reddit Explain: unavailable ({explain.get('error', 'request failed')})")
+    for key, label in (("reddit_explain", "Reddit Explain"), ("x_explain", "X/Twitter Explain")):
+        explain = report.get(key, {})
+        if explain.get("ok") and isinstance(explain.get("data"), dict):
+            text = str(explain["data"].get("explanation") or "").strip()
+            if text:
+                lines.append(f"- {label}: " + text)
+        elif not explain.get("ok"):
+            lines.append(f"- {label}: unavailable ({explain.get('error', 'request failed')})")
 
     lines.append("Data sources covered: /news/stocks, /reddit/stocks, /x/stocks, /polymarket/stocks")
     return "\n".join(lines)
