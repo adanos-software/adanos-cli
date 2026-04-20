@@ -5,6 +5,12 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.24.0] - 2026-04-20
+
+### Changed
+- Updated reports and screeners for API `1.25.0` canonical fields, using `mentions`, `sentiment_score`, and `total_upvotes` instead of removed response aliases.
+- Relaxed the Python SDK dependency to allow the `adanos` 2.x release line.
+
 ## [1.23.0] - 2026-04-12
 
 ### Added

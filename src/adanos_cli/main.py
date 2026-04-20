@@ -2630,10 +2630,7 @@ def _as_float(value: Any) -> float | None:
 
 
 def _resolve_report_volume(data: dict[str, Any], volume_key: str) -> Any:
-    value = data.get(volume_key)
-    if value is None and volume_key == "mentions":
-        return data.get("total_mentions")
-    return value
+    return data.get(volume_key)
 
 
 def _extract_report_explanation(report: dict[str, Any], key: str) -> Any:
@@ -2682,8 +2679,6 @@ def _build_consensus_report(report: dict[str, Any]) -> dict[str, Any]:
 
         buzz = _as_float(data.get("buzz_score"))
         sentiment = _as_float(data.get("sentiment_score"))
-        if sentiment is None:
-            sentiment = _as_float(data.get("sentiment"))
         volume_raw = _resolve_report_volume(data, volume_key)
         volume = int(volume_raw) if isinstance(volume_raw, (int, float)) else 0
         trend = str(data.get("trend") or "n/a")
@@ -2930,7 +2925,7 @@ def _render_csv(kind: str, payload: dict[str, Any]) -> str:
                     "source": source_name,
                     "ticker": payload.get("ticker"),
                     "buzz_score": data.get("buzz_score"),
-                    "sentiment": data.get("sentiment_score", data.get("sentiment")),
+                    "sentiment": data.get("sentiment_score"),
                     "volume": _resolve_report_volume(data, volume_key),
                     "trend": data.get("trend"),
                 }
