@@ -44,10 +44,7 @@ def _as_float(value: Any) -> float | None:
 
 
 def _resolve_volume_value(data: dict[str, Any], volume_key: str) -> Any:
-    value = data.get(volume_key)
-    if value is None and volume_key == "mentions":
-        return data.get("total_mentions")
-    return value
+    return data.get(volume_key)
 
 
 def _derive_signal(sentiment: float | None, *, buzz: float | None, platforms: int) -> str:
@@ -220,7 +217,7 @@ def build_stock_scan_report(client: Any, *, days: int, limit: int) -> dict[str, 
             )
             buzz = row.get("buzz_score")
             volume = row.get("mentions", row.get("trade_count", 0))
-            sentiment = row.get("sentiment_score", row.get("sentiment"))
+            sentiment = row.get("sentiment_score")
 
             entry["platforms"] += 1
             if isinstance(volume, (int, float)):
@@ -517,9 +514,9 @@ def format_crypto_compare_report(report: dict[str, Any]) -> str:
         lines.append(
             "- "
             f"{row.get('symbol', 'n/a')}: buzz={fmt_num(row.get('buzz_score'))}, "
-            f"mentions={fmt_num(row.get('mentions', row.get('total_mentions')))}, "
-            f"sentiment={fmt_num(row.get('sentiment', row.get('sentiment_score')))}, "
-            f"upvotes={fmt_num(row.get('upvotes', row.get('total_upvotes')))}"
+            f"mentions={fmt_num(row.get('mentions'))}, "
+            f"sentiment={fmt_num(row.get('sentiment_score'))}, "
+            f"upvotes={fmt_num(row.get('total_upvotes'))}"
         )
     if len(lines) == 1:
         lines.append("- no rows returned")
@@ -551,7 +548,7 @@ def format_stock_compare_report(report: dict[str, Any]) -> str:
         lines.append(f"- {label}:")
         for row in rows[:10]:
             mentions = row.get("mentions", row.get("trade_count"))
-            sentiment = row.get("sentiment", row.get("sentiment_score"))
+            sentiment = row.get("sentiment_score")
             lines.append(
                 "  "
                 f"{row.get('ticker', 'n/a')}: buzz={fmt_num(row.get('buzz_score'))}, "
