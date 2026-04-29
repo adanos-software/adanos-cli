@@ -5,6 +5,13 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.25.0] - 2026-04-29
+
+### Added
+- Added CLI endpoint coverage for raw mentions across Reddit Stocks, News Stocks, Reddit Crypto, X/Twitter Stocks, and Polymarket Stocks.
+- Added `--include-inherited` for Reddit raw mention endpoint calls.
+- Added `--dimension stocks` as an alias for main stock trending lists.
+
 ## [1.24.0] - 2026-04-20
 
 ### Changed
