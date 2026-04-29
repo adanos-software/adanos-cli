@@ -80,6 +80,15 @@ def _reddit_stocks_stock(client: Any, args: Namespace) -> Any:
     return client.reddit.stock(_require_str(args, "ticker"), days=_with_default(args.days, 7))
 
 
+def _reddit_stocks_mentions(client: Any, args: Namespace) -> Any:
+    return client.reddit.mentions(
+        _require_str(args, "ticker"),
+        days=_with_default(args.days, 7),
+        limit=_with_default(args.limit, 100),
+        include_inherited=bool(getattr(args, "include_inherited", False)),
+    )
+
+
 def _reddit_stocks_explain(client: Any, args: Namespace) -> Any:
     return client.reddit.explain(_require_str(args, "ticker"))
 
@@ -145,6 +154,14 @@ def _news_stocks_stock(client: Any, args: Namespace) -> Any:
     )
 
 
+def _news_stocks_mentions(client: Any, args: Namespace) -> Any:
+    return client.news.mentions(
+        _require_str(args, "ticker"),
+        days=_with_default(args.days, 7),
+        limit=_with_default(args.limit, 100),
+    )
+
+
 def _news_stocks_explain(client: Any, args: Namespace) -> Any:
     return client.news.explain(_require_str(args, "ticker"))
 
@@ -188,6 +205,15 @@ def _reddit_crypto_trending(client: Any, args: Namespace) -> Any:
 
 def _reddit_crypto_token(client: Any, args: Namespace) -> Any:
     return client.crypto.token(_require_str(args, "symbol"), days=_with_default(args.days, 7))
+
+
+def _reddit_crypto_mentions(client: Any, args: Namespace) -> Any:
+    return client.crypto.mentions(
+        _require_str(args, "symbol"),
+        days=_with_default(args.days, 7),
+        limit=_with_default(args.limit, 100),
+        include_inherited=bool(getattr(args, "include_inherited", False)),
+    )
 
 
 def _reddit_crypto_search(client: Any, args: Namespace) -> Any:
@@ -243,6 +269,14 @@ def _x_stocks_trending_countries(client: Any, args: Namespace) -> Any:
 
 def _x_stocks_stock(client: Any, args: Namespace) -> Any:
     return client.x.stock(_require_str(args, "ticker"), days=_with_default(args.days, 7))
+
+
+def _x_stocks_mentions(client: Any, args: Namespace) -> Any:
+    return client.x.mentions(
+        _require_str(args, "ticker"),
+        days=_with_default(args.days, 7),
+        limit=_with_default(args.limit, 100),
+    )
 
 
 def _x_stocks_explain(client: Any, args: Namespace) -> Any:
@@ -304,6 +338,14 @@ def _polymarket_stocks_stock(client: Any, args: Namespace) -> Any:
     return client.polymarket.stock(_require_str(args, "ticker"), days=_with_default(args.days, 7))
 
 
+def _polymarket_stocks_mentions(client: Any, args: Namespace) -> Any:
+    return client.polymarket.mentions(
+        _require_str(args, "ticker"),
+        days=_with_default(args.days, 7),
+        limit=_with_default(args.limit, 100),
+    )
+
+
 def _polymarket_stocks_search(client: Any, args: Namespace) -> Any:
     return client.polymarket.search(
         _require_str(args, "q", "query"),
@@ -342,6 +384,9 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     "news-stocks.stock": EndpointSpec(
         "news-stocks.stock", "/news/stocks/v1/stock/{ticker}", "Stock detail in News", ("ticker",), ("days",), _news_stocks_stock
     ),
+    "news-stocks.stock.mentions": EndpointSpec(
+        "news-stocks.stock.mentions", "/news/stocks/v1/stock/{ticker}/mentions", "Raw News mentions for a stock", ("ticker",), ("days", "limit"), _news_stocks_mentions
+    ),
     "news-stocks.stock.explain": EndpointSpec(
         "news-stocks.stock.explain", "/news/stocks/v1/stock/{ticker}/explain", "AI explanation for News stock trend", ("ticker",), tuple(), _news_stocks_explain
     ),
@@ -378,6 +423,9 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     "reddit-stocks.stock": EndpointSpec(
         "reddit-stocks.stock", "/reddit/stocks/v1/stock/{ticker}", "Stock detail on Reddit", ("ticker",), ("days",), _reddit_stocks_stock
     ),
+    "reddit-stocks.stock.mentions": EndpointSpec(
+        "reddit-stocks.stock.mentions", "/reddit/stocks/v1/stock/{ticker}/mentions", "Raw Reddit mentions for a stock", ("ticker",), ("days", "limit", "include_inherited"), _reddit_stocks_mentions
+    ),
     "reddit-stocks.stock.explain": EndpointSpec(
         "reddit-stocks.stock.explain", "/reddit/stocks/v1/stock/{ticker}/explain", "AI explanation for Reddit stock trend", ("ticker",), tuple(), _reddit_stocks_explain
     ),
@@ -407,6 +455,9 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     ),
     "reddit-crypto.token": EndpointSpec(
         "reddit-crypto.token", "/reddit/crypto/v1/token/{symbol}", "Crypto token detail on Reddit", ("symbol",), ("days",), _reddit_crypto_token
+    ),
+    "reddit-crypto.token.mentions": EndpointSpec(
+        "reddit-crypto.token.mentions", "/reddit/crypto/v1/token/{symbol}/mentions", "Raw Reddit mentions for a crypto token", ("symbol",), ("days", "limit", "include_inherited"), _reddit_crypto_mentions
     ),
     "reddit-crypto.search": EndpointSpec(
         "reddit-crypto.search",
@@ -440,6 +491,9 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     ),
     "x-stocks.stock": EndpointSpec(
         "x-stocks.stock", "/x/stocks/v1/stock/{ticker}", "Stock detail on X/Twitter", ("ticker",), ("days",), _x_stocks_stock
+    ),
+    "x-stocks.stock.mentions": EndpointSpec(
+        "x-stocks.stock.mentions", "/x/stocks/v1/stock/{ticker}/mentions", "Raw X/Twitter mentions for a stock", ("ticker",), ("days", "limit"), _x_stocks_mentions
     ),
     "x-stocks.stock.explain": EndpointSpec(
         "x-stocks.stock.explain", "/x/stocks/v1/stock/{ticker}/explain", "AI explanation for X/Twitter stock trend", ("ticker",), tuple(), _x_stocks_explain
@@ -476,6 +530,9 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     ),
     "polymarket-stocks.stock": EndpointSpec(
         "polymarket-stocks.stock", "/polymarket/stocks/v1/stock/{ticker}", "Stock detail on Polymarket", ("ticker",), ("days",), _polymarket_stocks_stock
+    ),
+    "polymarket-stocks.stock.mentions": EndpointSpec(
+        "polymarket-stocks.stock.mentions", "/polymarket/stocks/v1/stock/{ticker}/mentions", "Raw Polymarket mentions for a stock", ("ticker",), ("days", "limit"), _polymarket_stocks_mentions
     ),
     "polymarket-stocks.search": EndpointSpec(
         "polymarket-stocks.search",

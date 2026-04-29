@@ -119,6 +119,22 @@ def test_endpoint_result_wrapper_includes_stable_metadata(monkeypatch, capsys) -
     assert len(payload["data"]) == 2
 
 
+def test_trending_stocks_dimension_alias_routes_to_main_endpoint(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        cli_main,
+        "_call_and_emit_endpoint",
+        lambda client, endpoint_id, args, **kwargs: print(json.dumps({"endpoint": endpoint_id, "dimension": args.dimension})),
+    )
+
+    cli_main._run_trending(
+        object(),
+        Namespace(platform="reddit-stocks", dimension="stocks", days=1, limit=2, offset=0, type=None, source=None, json=True),
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"endpoint": "reddit-stocks.trending", "dimension": "stocks"}
+
+
 def test_health_all_json_includes_stable_metadata(monkeypatch, capsys) -> None:
     monkeypatch.setattr(cli_main, "invoke_endpoint", lambda client, endpoint_id, args: {"ok": True, "endpoint": endpoint_id})
 

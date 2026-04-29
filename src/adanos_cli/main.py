@@ -2076,6 +2076,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ep_call.add_argument("--days", type=int)
     p_ep_call.add_argument("--limit", type=int)
     p_ep_call.add_argument("--offset", type=int)
+    p_ep_call.add_argument("--include-inherited", action="store_true", help="Include inherited Reddit thread context for raw mention endpoints")
     p_ep_call.add_argument("--type", choices=["stock", "etf", "all"])
     p_ep_call.add_argument("--source", help="Optional canonical/alias news source filter for supported news endpoints")
     p_ep_call.add_argument("--json", action="store_true")
@@ -2128,7 +2129,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_trending = subs.add_parser("trending", help="Fetch trending lists")
     p_trending.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], required=True)
-    p_trending.add_argument("--dimension", choices=["main", "sectors", "countries", "tokens"], default="main")
+    p_trending.add_argument("--dimension", choices=["main", "stocks", "sectors", "countries", "tokens"], default="main")
     p_trending.add_argument("--days", type=int, default=1)
     p_trending.add_argument("--limit", type=int, default=20)
     p_trending.add_argument("--offset", type=int, default=0)
@@ -2259,17 +2260,21 @@ def _run_health(client: Any, args: Namespace) -> None:
 def _run_trending(client: Any, args: Namespace) -> None:
     mapping = {
         ("news-stocks", "main"): "news-stocks.trending",
+        ("news-stocks", "stocks"): "news-stocks.trending",
         ("news-stocks", "sectors"): "news-stocks.trending.sectors",
         ("news-stocks", "countries"): "news-stocks.trending.countries",
         ("reddit-stocks", "main"): "reddit-stocks.trending",
+        ("reddit-stocks", "stocks"): "reddit-stocks.trending",
         ("reddit-stocks", "sectors"): "reddit-stocks.trending.sectors",
         ("reddit-stocks", "countries"): "reddit-stocks.trending.countries",
         ("reddit-crypto", "main"): "reddit-crypto.trending",
         ("reddit-crypto", "tokens"): "reddit-crypto.trending",
         ("x-stocks", "main"): "x-stocks.trending",
+        ("x-stocks", "stocks"): "x-stocks.trending",
         ("x-stocks", "sectors"): "x-stocks.trending.sectors",
         ("x-stocks", "countries"): "x-stocks.trending.countries",
         ("polymarket-stocks", "main"): "polymarket-stocks.trending",
+        ("polymarket-stocks", "stocks"): "polymarket-stocks.trending",
         ("polymarket-stocks", "sectors"): "polymarket-stocks.trending.sectors",
         ("polymarket-stocks", "countries"): "polymarket-stocks.trending.countries",
     }

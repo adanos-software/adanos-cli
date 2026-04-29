@@ -33,6 +33,11 @@ NEWS_ENDPOINT_IDS = {
         "required": ("ticker",),
         "optional": ("days",),
     },
+    "news-stocks.stock.mentions": {
+        "path": "/news/stocks/v1/stock/{ticker}/mentions",
+        "required": ("ticker",),
+        "optional": ("days", "limit"),
+    },
     "news-stocks.stock.explain": {
         "path": "/news/stocks/v1/stock/{ticker}/explain",
         "required": ("ticker",),
@@ -80,7 +85,7 @@ def test_endpoint_paths_cover_all_supported_platform_families() -> None:
 
 
 def test_endpoint_count_is_complete() -> None:
-    assert len(ENDPOINTS) == 46
+    assert len(ENDPOINTS) == 51
 
 
 def test_news_endpoint_specs_are_complete() -> None:
@@ -163,6 +168,36 @@ def test_invoke_endpoint_x_explain_passes_ticker() -> None:
     result = invoke_endpoint(client, "x-stocks.stock.explain", Namespace(ticker="NVDA", source=None))
     assert result == {"ticker": "NVDA", "explanation": "X context"}
     assert client.x.calls == ["NVDA"]
+
+
+def test_invoke_endpoint_raw_mentions_passes_params() -> None:
+    class DummyReddit:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, int, int, bool]] = []
+
+        def mentions(
+            self,
+            ticker: str,
+            *,
+            days: int = 7,
+            limit: int = 100,
+            include_inherited: bool = False,
+        ) -> dict[str, str]:
+            self.calls.append((ticker, days, limit, include_inherited))
+            return {"ticker": ticker}
+
+    class DummyClient:
+        def __init__(self) -> None:
+            self.reddit = DummyReddit()
+
+    client = DummyClient()
+    result = invoke_endpoint(
+        client,
+        "reddit-stocks.stock.mentions",
+        Namespace(ticker="TSLA", days=14, limit=25, include_inherited=True, source=None),
+    )
+    assert result == {"ticker": "TSLA"}
+    assert client.reddit.calls == [("TSLA", 14, 25, True)]
 
 
 def test_nlp_detects_stock_intent() -> None:
