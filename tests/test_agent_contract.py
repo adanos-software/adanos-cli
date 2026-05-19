@@ -145,8 +145,22 @@ def test_health_all_json_includes_stable_metadata(monkeypatch, capsys) -> None:
     assert payload["command"] == "health"
     assert payload["platform"] == "all"
     assert "checks" in payload
+    assert "root.health" in payload["checks"]
     assert "news-stocks.health" in payload["checks"]
     assert "news-stocks.health" in payload
+
+
+def test_health_root_routes_to_root_endpoint(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        cli_main,
+        "_call_and_emit_endpoint",
+        lambda client, endpoint_id, args, **kwargs: print(json.dumps({"endpoint": endpoint_id})),
+    )
+
+    cli_main._run_health(object(), Namespace(platform="root", json=True))
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"endpoint": "root.health"}
 
 
 class _SearchNamespace:

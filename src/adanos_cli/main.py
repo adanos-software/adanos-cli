@@ -2157,7 +2157,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_stats.set_defaults(_handler="stats")
 
     p_health = subs.add_parser("health", help="Get health endpoint by platform or all")
-    p_health.add_argument("--platform", choices=["all", "news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], default="all")
+    p_health.add_argument("--platform", choices=["all", "root", "news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], default="all")
     p_health.add_argument("--json", action="store_true")
     p_health.set_defaults(_handler="health")
 
@@ -2227,6 +2227,7 @@ def _run_health(client: Any, args: Namespace) -> None:
     if args.platform == "all":
         report = {}
         for endpoint_id in (
+            "root.health",
             "news-stocks.health",
             "reddit-stocks.health",
             "reddit-crypto.health",

@@ -36,7 +36,7 @@ NEWS_ENDPOINT_IDS = {
     "news-stocks.stock.mentions": {
         "path": "/news/stocks/v1/stock/{ticker}/mentions",
         "required": ("ticker",),
-        "optional": ("days", "limit"),
+        "optional": ("days", "limit", "offset"),
     },
     "news-stocks.stock.explain": {
         "path": "/news/stocks/v1/stock/{ticker}/explain",
@@ -85,7 +85,14 @@ def test_endpoint_paths_cover_all_supported_platform_families() -> None:
 
 
 def test_endpoint_count_is_complete() -> None:
-    assert len(ENDPOINTS) == 51
+    assert len(ENDPOINTS) == 52
+
+
+def test_root_health_endpoint_spec_is_complete() -> None:
+    spec = ENDPOINTS["root.health"]
+    assert spec.path == "/health"
+    assert spec.required_params == tuple()
+    assert spec.optional_params == tuple()
 
 
 def test_news_endpoint_specs_are_complete() -> None:
@@ -101,6 +108,18 @@ def test_x_explain_endpoint_spec_is_complete() -> None:
     assert spec.path == "/x/stocks/v1/stock/{ticker}/explain"
     assert spec.required_params == ("ticker",)
     assert spec.optional_params == tuple()
+
+
+def test_raw_mention_endpoint_specs_support_offset() -> None:
+    expected = {
+        "reddit-stocks.stock.mentions": ("days", "limit", "offset", "include_inherited"),
+        "news-stocks.stock.mentions": ("days", "limit", "offset"),
+        "reddit-crypto.token.mentions": ("days", "limit", "offset", "include_inherited"),
+        "x-stocks.stock.mentions": ("days", "limit", "offset"),
+        "polymarket-stocks.stock.mentions": ("days", "limit", "offset"),
+    }
+    for endpoint_id, optional_params in expected.items():
+        assert ENDPOINTS[endpoint_id].optional_params == optional_params
 
 
 def test_invoke_endpoint_rejects_unsupported_source() -> None:
@@ -173,7 +192,7 @@ def test_invoke_endpoint_x_explain_passes_ticker() -> None:
 def test_invoke_endpoint_raw_mentions_passes_params() -> None:
     class DummyReddit:
         def __init__(self) -> None:
-            self.calls: list[tuple[str, int, int, bool]] = []
+            self.calls: list[tuple[str, int, int, int, bool]] = []
 
         def mentions(
             self,
@@ -181,9 +200,10 @@ def test_invoke_endpoint_raw_mentions_passes_params() -> None:
             *,
             days: int = 7,
             limit: int = 100,
+            offset: int = 0,
             include_inherited: bool = False,
         ) -> dict[str, str]:
-            self.calls.append((ticker, days, limit, include_inherited))
+            self.calls.append((ticker, days, limit, offset, include_inherited))
             return {"ticker": ticker}
 
     class DummyClient:
@@ -194,10 +214,45 @@ def test_invoke_endpoint_raw_mentions_passes_params() -> None:
     result = invoke_endpoint(
         client,
         "reddit-stocks.stock.mentions",
-        Namespace(ticker="TSLA", days=14, limit=25, include_inherited=True, source=None),
+        Namespace(ticker="TSLA", days=14, limit=25, offset=50, include_inherited=True, source=None),
     )
     assert result == {"ticker": "TSLA"}
-    assert client.reddit.calls == [("TSLA", 14, 25, True)]
+    assert client.reddit.calls == [("TSLA", 14, 25, 50, True)]
+
+
+def test_invoke_endpoint_root_health_uses_raw_sdk_http() -> None:
+    class DummyResponse:
+        content = b'{"status":"ok"}'
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, str]:
+            return {"status": "ok"}
+
+    class DummyHttp:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str]] = []
+
+        def request(self, method: str, path: str) -> DummyResponse:
+            self.calls.append((method, path))
+            return DummyResponse()
+
+    class DummySdkClient:
+        def __init__(self) -> None:
+            self.http = DummyHttp()
+
+        def get_httpx_client(self) -> DummyHttp:
+            return self.http
+
+    class DummyClient:
+        def __init__(self) -> None:
+            self._client = DummySdkClient()
+
+    client = DummyClient()
+    result = invoke_endpoint(client, "root.health", Namespace(source=None))
+    assert result == {"status": "ok"}
+    assert client._client.http.calls == [("get", "/health")]
 
 
 def test_nlp_detects_stock_intent() -> None:
