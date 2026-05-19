@@ -171,10 +171,14 @@ Raw endpoint access:
 
 ```bash
 adanos endpoint list
+adanos endpoint call root.health
 adanos endpoint call reddit-stocks.trending --days 1 --limit 10
 adanos endpoint call reddit-stocks.market-sentiment --days 7
+adanos endpoint call reddit-stocks.stock.mentions --ticker TSLA --days 7 --limit 10 --offset 10 --include-inherited
 adanos endpoint call x-stocks.stock.explain --ticker TSLA
 ```
+
+Polymarket endpoint output includes both `market_count` for selected-window breadth and `current_market_count` for live-only active-market breadth.
 
 ## AI / Automation
 

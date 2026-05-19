@@ -26,6 +26,18 @@ def _with_default(value: Any, default: Any) -> Any:
     return default if value is None else value
 
 
+def _raw_get_json(client: Any, path: str) -> Any:
+    sdk_client = getattr(client, "_client", None)
+    get_httpx_client = getattr(sdk_client, "get_httpx_client", None)
+    if not callable(get_httpx_client):
+        raise CliUsageError("Endpoint requires an Adanos SDK client with raw HTTP support")
+    response = get_httpx_client().request("get", path)
+    response.raise_for_status()
+    if not response.content:
+        return None
+    return response.json()
+
+
 def _require_str(args: Namespace, *names: str) -> str:
     for name in names:
         value = getattr(args, name, None)
@@ -85,6 +97,7 @@ def _reddit_stocks_mentions(client: Any, args: Namespace) -> Any:
         _require_str(args, "ticker"),
         days=_with_default(args.days, 7),
         limit=_with_default(args.limit, 100),
+        offset=_with_default(args.offset, 0),
         include_inherited=bool(getattr(args, "include_inherited", False)),
     )
 
@@ -159,6 +172,7 @@ def _news_stocks_mentions(client: Any, args: Namespace) -> Any:
         _require_str(args, "ticker"),
         days=_with_default(args.days, 7),
         limit=_with_default(args.limit, 100),
+        offset=_with_default(args.offset, 0),
     )
 
 
@@ -212,6 +226,7 @@ def _reddit_crypto_mentions(client: Any, args: Namespace) -> Any:
         _require_str(args, "symbol"),
         days=_with_default(args.days, 7),
         limit=_with_default(args.limit, 100),
+        offset=_with_default(args.offset, 0),
         include_inherited=bool(getattr(args, "include_inherited", False)),
     )
 
@@ -276,6 +291,7 @@ def _x_stocks_mentions(client: Any, args: Namespace) -> Any:
         _require_str(args, "ticker"),
         days=_with_default(args.days, 7),
         limit=_with_default(args.limit, 100),
+        offset=_with_default(args.offset, 0),
     )
 
 
@@ -343,6 +359,7 @@ def _polymarket_stocks_mentions(client: Any, args: Namespace) -> Any:
         _require_str(args, "ticker"),
         days=_with_default(args.days, 7),
         limit=_with_default(args.limit, 100),
+        offset=_with_default(args.offset, 0),
     )
 
 
@@ -370,7 +387,15 @@ def _polymarket_stocks_health(client: Any, args: Namespace) -> Any:
     return client.polymarket.health()
 
 
+def _root_health(client: Any, args: Namespace) -> Any:
+    return _raw_get_json(client, "/health")
+
+
 ENDPOINTS: dict[str, EndpointSpec] = {
+    # Root
+    "root.health": EndpointSpec(
+        "root.health", "/health", "Root API health", tuple(), tuple(), _root_health
+    ),
     # News Stocks
     "news-stocks.trending": EndpointSpec(
         "news-stocks.trending", "/news/stocks/v1/trending", "Trending News stocks", tuple(), ("days", "limit", "offset", "type", "source"), _news_stocks_trending
@@ -385,7 +410,7 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "news-stocks.stock", "/news/stocks/v1/stock/{ticker}", "Stock detail in News", ("ticker",), ("days",), _news_stocks_stock
     ),
     "news-stocks.stock.mentions": EndpointSpec(
-        "news-stocks.stock.mentions", "/news/stocks/v1/stock/{ticker}/mentions", "Raw News mentions for a stock", ("ticker",), ("days", "limit"), _news_stocks_mentions
+        "news-stocks.stock.mentions", "/news/stocks/v1/stock/{ticker}/mentions", "Raw News mentions for a stock", ("ticker",), ("days", "limit", "offset"), _news_stocks_mentions
     ),
     "news-stocks.stock.explain": EndpointSpec(
         "news-stocks.stock.explain", "/news/stocks/v1/stock/{ticker}/explain", "AI explanation for News stock trend", ("ticker",), tuple(), _news_stocks_explain
@@ -424,7 +449,7 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "reddit-stocks.stock", "/reddit/stocks/v1/stock/{ticker}", "Stock detail on Reddit", ("ticker",), ("days",), _reddit_stocks_stock
     ),
     "reddit-stocks.stock.mentions": EndpointSpec(
-        "reddit-stocks.stock.mentions", "/reddit/stocks/v1/stock/{ticker}/mentions", "Raw Reddit mentions for a stock", ("ticker",), ("days", "limit", "include_inherited"), _reddit_stocks_mentions
+        "reddit-stocks.stock.mentions", "/reddit/stocks/v1/stock/{ticker}/mentions", "Raw Reddit mentions for a stock", ("ticker",), ("days", "limit", "offset", "include_inherited"), _reddit_stocks_mentions
     ),
     "reddit-stocks.stock.explain": EndpointSpec(
         "reddit-stocks.stock.explain", "/reddit/stocks/v1/stock/{ticker}/explain", "AI explanation for Reddit stock trend", ("ticker",), tuple(), _reddit_stocks_explain
@@ -457,7 +482,7 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "reddit-crypto.token", "/reddit/crypto/v1/token/{symbol}", "Crypto token detail on Reddit", ("symbol",), ("days",), _reddit_crypto_token
     ),
     "reddit-crypto.token.mentions": EndpointSpec(
-        "reddit-crypto.token.mentions", "/reddit/crypto/v1/token/{symbol}/mentions", "Raw Reddit mentions for a crypto token", ("symbol",), ("days", "limit", "include_inherited"), _reddit_crypto_mentions
+        "reddit-crypto.token.mentions", "/reddit/crypto/v1/token/{symbol}/mentions", "Raw Reddit mentions for a crypto token", ("symbol",), ("days", "limit", "offset", "include_inherited"), _reddit_crypto_mentions
     ),
     "reddit-crypto.search": EndpointSpec(
         "reddit-crypto.search",
@@ -493,7 +518,7 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "x-stocks.stock", "/x/stocks/v1/stock/{ticker}", "Stock detail on X/Twitter", ("ticker",), ("days",), _x_stocks_stock
     ),
     "x-stocks.stock.mentions": EndpointSpec(
-        "x-stocks.stock.mentions", "/x/stocks/v1/stock/{ticker}/mentions", "Raw X/Twitter mentions for a stock", ("ticker",), ("days", "limit"), _x_stocks_mentions
+        "x-stocks.stock.mentions", "/x/stocks/v1/stock/{ticker}/mentions", "Raw X/Twitter mentions for a stock", ("ticker",), ("days", "limit", "offset"), _x_stocks_mentions
     ),
     "x-stocks.stock.explain": EndpointSpec(
         "x-stocks.stock.explain", "/x/stocks/v1/stock/{ticker}/explain", "AI explanation for X/Twitter stock trend", ("ticker",), tuple(), _x_stocks_explain
@@ -532,7 +557,7 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "polymarket-stocks.stock", "/polymarket/stocks/v1/stock/{ticker}", "Stock detail on Polymarket", ("ticker",), ("days",), _polymarket_stocks_stock
     ),
     "polymarket-stocks.stock.mentions": EndpointSpec(
-        "polymarket-stocks.stock.mentions", "/polymarket/stocks/v1/stock/{ticker}/mentions", "Raw Polymarket mentions for a stock", ("ticker",), ("days", "limit"), _polymarket_stocks_mentions
+        "polymarket-stocks.stock.mentions", "/polymarket/stocks/v1/stock/{ticker}/mentions", "Raw Polymarket mentions for a stock", ("ticker",), ("days", "limit", "offset"), _polymarket_stocks_mentions
     ),
     "polymarket-stocks.search": EndpointSpec(
         "polymarket-stocks.search",
