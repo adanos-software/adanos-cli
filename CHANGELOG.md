@@ -5,6 +5,17 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.26.0] - 2026-05-19
+
+### Added
+- Synced endpoint coverage with Adanos Market Sentiment API `1.34.0`.
+- Added `root.health` endpoint coverage and `adanos health --platform root`.
+- Added raw mention `--offset` support across Reddit Stocks, News Stocks, X/Twitter Stocks, Polymarket Stocks, and Reddit Crypto endpoint calls.
+- Documented Polymarket `current_market_count` as live active-market breadth.
+
+### Changed
+- Raised the Python SDK dependency floor to `adanos>=2.2.0` so CLI raw mention offset calls are supported by the installed SDK.
+
 ## [1.25.0] - 2026-04-29
 
 ### Added
