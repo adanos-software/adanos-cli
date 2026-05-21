@@ -5,6 +5,11 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.27.1] - 2026-05-21
+
+### Fixed
+- Fixed top-level `adanos search` so `--limit` is accepted and period arguments are forwarded consistently.
+
 ## [1.27.0] - 2026-05-21
 
 ### Added
