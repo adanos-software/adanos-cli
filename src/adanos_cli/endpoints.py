@@ -37,6 +37,8 @@ def _period_kwargs(args: Namespace, *, default_days: int) -> dict[str, Any]:
     from_value = getattr(args, "from_", None)
     to_value = getattr(args, "to", None)
     days = getattr(args, "days", None)
+    if days is not None and from_value and to_value:
+        raise CliUsageError("Use either --days or --from/--to; do not combine --days with both --from and --to.")
     if days is None and not from_value and not to_value:
         days = default_days
     kwargs: dict[str, Any] = {}

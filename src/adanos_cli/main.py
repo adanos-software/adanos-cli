@@ -56,7 +56,7 @@ from .summaries import (
 )
 from .tty import is_interactive, should_output_json, supports_color
 from .update_notifier import format_update_notice, get_update_payload
-from .utils import CliUsageError, csv_to_list, print_err, print_json, to_plain, with_json_metadata
+from .utils import CliRuntimeError, CliUsageError, csv_to_list, print_err, print_json, to_plain, with_json_metadata
 from .watchlists import (
     delete_watchlist,
     get_watchlist,
@@ -739,6 +739,55 @@ def _endpoint_result_payload(endpoint_id: str, data: Any, *, command: str, subco
     return payload
 
 
+def _format_api_detail(detail: Any) -> str | None:
+    if isinstance(detail, str) and detail.strip():
+        return detail.strip()
+    if isinstance(detail, dict):
+        message = detail.get("message") or detail.get("error") or detail.get("msg")
+        if isinstance(message, str) and message.strip():
+            return message.strip()
+    if isinstance(detail, list):
+        messages: list[str] = []
+        for item in detail:
+            if not isinstance(item, dict):
+                continue
+            loc = item.get("loc")
+            if isinstance(loc, list):
+                loc_text = ".".join(str(part) for part in loc)
+            else:
+                loc_text = str(loc) if loc else ""
+            msg = item.get("msg") or item.get("message") or item.get("error")
+            if isinstance(msg, str) and msg.strip():
+                messages.append(f"{loc_text}: {msg.strip()}" if loc_text else msg.strip())
+        if messages:
+            return "; ".join(messages)
+    return None
+
+
+def _extract_api_error_payload_message(payload: Any) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    detail_message = _format_api_detail(payload.get("detail"))
+    if detail_message:
+        return detail_message
+    for key in ("message", "error"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _raise_if_api_error_payload(data: Any) -> None:
+    payload = to_plain(data)
+    if not isinstance(payload, dict):
+        return
+    if "detail" not in payload and "error" not in payload:
+        return
+    message = _extract_api_error_payload_message(payload)
+    if message:
+        raise CliRuntimeError(message)
+
+
 def _print_capabilities_text(payload: dict[str, Any]) -> None:
     print("CLI capabilities")
     print(f"- name: {payload['name']}")
@@ -769,16 +818,9 @@ def _extract_error_message(response: httpx.Response) -> str:
         payload = None
 
     if isinstance(payload, dict):
-        detail = payload.get("detail")
-        if isinstance(detail, str) and detail.strip():
-            return detail.strip()
-        if isinstance(detail, dict):
-            message = detail.get("message")
-            if isinstance(message, str) and message.strip():
-                return message.strip()
-            error = detail.get("error")
-            if isinstance(error, str) and error.strip():
-                return error.strip()
+        detail_message = _format_api_detail(payload.get("detail"))
+        if detail_message:
+            return detail_message
         message = payload.get("message")
         if isinstance(message, str) and message.strip():
             return message.strip()
@@ -857,13 +899,9 @@ def _extract_runtime_error_message(exc: Exception) -> str:
             try:
                 payload = json.loads(decoded)
                 if isinstance(payload, dict):
-                    detail = payload.get("detail")
-                    if isinstance(detail, str) and detail.strip():
-                        return detail.strip()
-                    if isinstance(detail, dict):
-                        detail_message = detail.get("message") or detail.get("error")
-                        if isinstance(detail_message, str) and detail_message.strip():
-                            return detail_message.strip()
+                    message = _extract_api_error_payload_message(payload)
+                    if message:
+                        return message
             except Exception:
                 pass
             return decoded.replace("\n", " ")
@@ -876,6 +914,9 @@ def _classify_runtime_error(exc: Exception) -> tuple[str, str, str | None, int |
     status_code = _extract_status_code_from_exception(exc)
     message = _extract_runtime_error_message(exc)
     lowered = message.lower()
+
+    if isinstance(exc, CliRuntimeError):
+        return ("api_error", message, None, status_code)
 
     if status_code == 401:
         return (
@@ -1784,8 +1825,8 @@ def _run_onboard_wizard(args: Namespace, base_url: str, *, json_mode: bool, runt
 
 
 def _add_period_args(parser: argparse.ArgumentParser, *, default_days: int) -> None:
-    parser.add_argument("--from", dest="from_", help="Recommended inclusive UTC start date (YYYY-MM-DD)")
-    parser.add_argument("--to", help="Recommended inclusive UTC end date (YYYY-MM-DD)")
+    parser.add_argument("--from", dest="from_", help="Inclusive UTC start date (YYYY-MM-DD)")
+    parser.add_argument("--to", help="Inclusive UTC end date (YYYY-MM-DD)")
     parser.add_argument(
         "--days",
         type=int,
@@ -1795,10 +1836,15 @@ def _add_period_args(parser: argparse.ArgumentParser, *, default_days: int) -> N
 
 
 def _period_from_args(args: Namespace) -> dict[str, Any]:
+    days = getattr(args, "days", None)
+    from_ = getattr(args, "from_", None)
+    to = getattr(args, "to", None)
+    if days is not None and from_ and to:
+        raise CliUsageError("Use either --days or --from/--to; do not combine --days with both --from and --to.")
     return {
-        "days": getattr(args, "days", None),
-        "from_": getattr(args, "from_", None),
-        "to": getattr(args, "to", None),
+        "days": days,
+        "from_": from_,
+        "to": to,
     }
 
 
@@ -2234,6 +2280,7 @@ def _call_and_emit_endpoint(
     subcommand: str | None = None,
 ) -> None:
     data = invoke_endpoint(client, endpoint_id, args)
+    _raise_if_api_error_payload(data)
     payload = _endpoint_result_payload(endpoint_id, data, command=command, subcommand=subcommand)
     if json_mode:
         print_json(payload)

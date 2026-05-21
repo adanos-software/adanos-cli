@@ -119,6 +119,39 @@ def test_endpoint_result_wrapper_includes_stable_metadata(monkeypatch, capsys) -
     assert len(payload["data"]) == 2
 
 
+def test_endpoint_api_error_payload_raises_runtime_error(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cli_main,
+        "invoke_endpoint",
+        lambda client, endpoint_id, args: {
+            "detail": [
+                {
+                    "loc": ["query", "from"],
+                    "msg": "Input should be a valid date or datetime",
+                }
+            ]
+        },
+    )
+
+    with pytest.raises(cli_main.CliRuntimeError, match="query.from: Input should be a valid date"):
+        cli_main._call_and_emit_endpoint(
+            object(),
+            "news-stocks.trending",
+            Namespace(days=None, from_="not-a-date", limit=2),
+            json_mode=True,
+            command="trending",
+        )
+
+
+def test_period_help_uses_plain_inclusive_labels(capsys) -> None:
+    assert cli_main.main(["stock", "--help"]) == 0
+
+    out = capsys.readouterr().out
+    assert "Recommended" not in out
+    assert "Inclusive UTC start date (YYYY-MM-DD)" in out
+    assert "Inclusive UTC end date (YYYY-MM-DD)" in out
+
+
 def test_trending_stocks_dimension_alias_routes_to_main_endpoint(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         cli_main,
