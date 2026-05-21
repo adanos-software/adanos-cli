@@ -108,73 +108,100 @@ def _top_signal_rows(
     return compact
 
 
-def build_stock_report(client: Any, ticker: str, *, days: int) -> dict[str, Any]:
+def _period_kwargs(days: int | None, from_: str | None, to: str | None, *, default_days: int = 7) -> dict[str, Any]:
+    if days is None and not from_ and not to:
+        days = default_days
+    kwargs: dict[str, Any] = {}
+    if days is not None:
+        kwargs["days"] = days
+    if from_:
+        kwargs["from_"] = from_
+    if to:
+        kwargs["to"] = to
+    return kwargs
+
+
+def _period_metadata(days: int | None, from_: str | None, to: str | None, *, default_days: int = 7) -> dict[str, Any]:
+    kwargs = _period_kwargs(days, from_, to, default_days=default_days)
+    return {
+        "days": kwargs.get("days"),
+        "from": kwargs.get("from_"),
+        "to": kwargs.get("to"),
+    }
+
+
+def build_stock_report(client: Any, ticker: str, *, days: int | None, from_: str | None = None, to: str | None = None) -> dict[str, Any]:
     symbol = ticker.upper().replace("$", "")
+    period = _period_kwargs(days, from_, to)
     return {
         "kind": "stock_report",
         "ticker": symbol,
-        "days": days,
-        "news": _call_safe(lambda: client.news.stock(symbol, days=days)),
-        "reddit": _call_safe(lambda: client.reddit.stock(symbol, days=days)),
-        "x": _call_safe(lambda: client.x.stock(symbol, days=days)),
-        "polymarket": _call_safe(lambda: client.polymarket.stock(symbol, days=days)),
+        **_period_metadata(days, from_, to),
+        "news": _call_safe(lambda: client.news.stock(symbol, **period)),
+        "reddit": _call_safe(lambda: client.reddit.stock(symbol, **period)),
+        "x": _call_safe(lambda: client.x.stock(symbol, **period)),
+        "polymarket": _call_safe(lambda: client.polymarket.stock(symbol, **period)),
         "reddit_explain": _call_safe(lambda: client.reddit.explain(symbol)),
         "x_explain": _call_safe(lambda: client.x.explain(symbol)),
     }
 
 
-def build_crypto_report(client: Any, symbol: str, *, days: int) -> dict[str, Any]:
+def build_crypto_report(client: Any, symbol: str, *, days: int | None, from_: str | None = None, to: str | None = None) -> dict[str, Any]:
     token = symbol.upper().replace("$", "")
+    period = _period_kwargs(days, from_, to)
     return {
         "kind": "crypto_report",
         "symbol": token,
-        "days": days,
-        "reddit_crypto": _call_safe(lambda: client.crypto.token(token, days=days)),
-        "search": _call_safe(lambda: client.crypto.search(token)),
+        **_period_metadata(days, from_, to),
+        "reddit_crypto": _call_safe(lambda: client.crypto.token(token, **period)),
+        "search": _call_safe(lambda: client.crypto.search(token, **period)),
         "stats": _call_safe(lambda: client.crypto.stats()),
     }
 
 
-def build_crypto_compare_report(client: Any, symbols: list[str], *, days: int) -> dict[str, Any]:
+def build_crypto_compare_report(client: Any, symbols: list[str], *, days: int | None, from_: str | None = None, to: str | None = None) -> dict[str, Any]:
     normalized = [s.upper().replace("$", "") for s in symbols if s.strip()]
+    period = _period_kwargs(days, from_, to)
     return {
         "kind": "crypto_compare",
         "symbols": normalized,
-        "days": days,
-        "reddit_crypto_compare": _call_safe(lambda: client.crypto.compare(normalized, days=days)),
+        **_period_metadata(days, from_, to),
+        "reddit_crypto_compare": _call_safe(lambda: client.crypto.compare(normalized, **period)),
     }
 
 
-def build_stock_compare_report(client: Any, tickers: list[str], *, days: int) -> dict[str, Any]:
+def build_stock_compare_report(client: Any, tickers: list[str], *, days: int | None, from_: str | None = None, to: str | None = None) -> dict[str, Any]:
     normalized = [s.upper().replace("$", "") for s in tickers if s.strip()]
+    period = _period_kwargs(days, from_, to)
     return {
         "kind": "stock_compare",
         "tickers": normalized,
-        "days": days,
-        "news": _call_safe(lambda: client.news.compare(normalized, days=days)),
-        "reddit": _call_safe(lambda: client.reddit.compare(normalized, days=days)),
-        "x": _call_safe(lambda: client.x.compare(normalized, days=days)),
-        "polymarket": _call_safe(lambda: client.polymarket.compare(normalized, days=days)),
+        **_period_metadata(days, from_, to),
+        "news": _call_safe(lambda: client.news.compare(normalized, **period)),
+        "reddit": _call_safe(lambda: client.reddit.compare(normalized, **period)),
+        "x": _call_safe(lambda: client.x.compare(normalized, **period)),
+        "polymarket": _call_safe(lambda: client.polymarket.compare(normalized, **period)),
     }
 
 
-def build_trending_report(client: Any, *, asset: str, days: int, limit: int = 5) -> dict[str, Any]:
+def build_trending_report(client: Any, *, asset: str, days: int | None, from_: str | None = None, to: str | None = None, limit: int = 5) -> dict[str, Any]:
+    period = _period_kwargs(days, from_, to, default_days=1)
     if asset == "crypto":
         return {
             "kind": "trending_report",
             "asset": "crypto",
-            "days": days,
-            "reddit_crypto": _call_safe(lambda: client.crypto.trending(days=days, limit=limit, offset=0)),
+            **_period_metadata(days, from_, to, default_days=1),
+            "reddit_crypto": _call_safe(lambda: client.crypto.trending(**period, limit=limit, offset=0)),
         }
 
     return {
         "kind": "trending_report",
         "asset": "stocks",
-        "days": days,
-        "news": _call_safe(lambda: client.news.trending(days=days, limit=limit, offset=0)),
-        "reddit": _call_safe(lambda: client.reddit.trending(days=days, limit=limit, offset=0)),
-        "x": _call_safe(lambda: client.x.trending(days=days, limit=limit, offset=0)),
-        "polymarket": _call_safe(lambda: client.polymarket.trending(days=days, limit=limit, offset=0)),
+        **_period_metadata(days, from_, to, default_days=1),
+        "news": _call_safe(lambda: client.news.trending(**period, limit=limit, offset=0)),
+        "reddit": _call_safe(lambda: client.reddit.trending(**period, limit=limit, offset=0)),
+        "x": _call_safe(lambda: client.x.trending(**period, limit=limit, offset=0)),
+        "polymarket": _call_safe(lambda: client.polymarket.trending(**period, limit=limit, offset=0)),
     }
 
 
@@ -187,12 +214,13 @@ def _extract_list_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return [row for row in data if isinstance(row, dict)]
 
 
-def build_stock_scan_report(client: Any, *, days: int, limit: int) -> dict[str, Any]:
+def build_stock_scan_report(client: Any, *, days: int | None, from_: str | None = None, to: str | None = None, limit: int) -> dict[str, Any]:
+    period = _period_kwargs(days, from_, to)
     sources = {
-        "news": _call_safe(lambda: client.news.trending(days=days, limit=limit, offset=0)),
-        "reddit": _call_safe(lambda: client.reddit.trending(days=days, limit=limit, offset=0)),
-        "x": _call_safe(lambda: client.x.trending(days=days, limit=limit, offset=0)),
-        "polymarket": _call_safe(lambda: client.polymarket.trending(days=days, limit=limit, offset=0)),
+        "news": _call_safe(lambda: client.news.trending(**period, limit=limit, offset=0)),
+        "reddit": _call_safe(lambda: client.reddit.trending(**period, limit=limit, offset=0)),
+        "x": _call_safe(lambda: client.x.trending(**period, limit=limit, offset=0)),
+        "polymarket": _call_safe(lambda: client.polymarket.trending(**period, limit=limit, offset=0)),
     }
 
     combined: dict[str, dict[str, Any]] = {}
@@ -275,15 +303,16 @@ def build_stock_scan_report(client: Any, *, days: int, limit: int) -> dict[str, 
 
     return {
         "kind": "stock_scan",
-        "days": days,
+        **_period_metadata(days, from_, to),
         "limit": limit,
         "rows": rows,
         "source_status": {name: {"ok": payload.get("ok"), "error": payload.get("error")} for name, payload in sources.items()},
     }
 
 
-def build_crypto_scan_report(client: Any, *, days: int, limit: int) -> dict[str, Any]:
-    payload = _call_safe(lambda: client.crypto.trending(days=days, limit=limit, offset=0))
+def build_crypto_scan_report(client: Any, *, days: int | None, from_: str | None = None, to: str | None = None, limit: int) -> dict[str, Any]:
+    period = _period_kwargs(days, from_, to)
+    payload = _call_safe(lambda: client.crypto.trending(**period, limit=limit, offset=0))
     rows = _extract_list_rows(payload)
     normalized_rows = []
     for row in rows:
@@ -319,7 +348,7 @@ def build_crypto_scan_report(client: Any, *, days: int, limit: int) -> dict[str,
     )
     return {
         "kind": "crypto_scan",
-        "days": days,
+        **_period_metadata(days, from_, to),
         "limit": limit,
         "rows": normalized_rows,
         "source_status": {"reddit_crypto": {"ok": payload.get("ok"), "error": payload.get("error")}},
@@ -330,8 +359,10 @@ def build_market_briefing_report(
     client: Any,
     *,
     profile: str,
-    days: int,
+    days: int | None,
     limit: int,
+    from_: str | None = None,
+    to: str | None = None,
     stock_focus: list[str] | None = None,
     crypto_focus: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -339,7 +370,7 @@ def build_market_briefing_report(
     report: dict[str, Any] = {
         "kind": "briefing",
         "profile": profile_normalized,
-        "days": days,
+        **_period_metadata(days, from_, to),
         "limit": limit,
     }
 
@@ -347,7 +378,7 @@ def build_market_briefing_report(
     include_crypto = profile_normalized in {"starter", "daytrader", "swing", "crypto", "research", "portfolio"}
 
     if include_stocks:
-        stocks_scan = build_stock_scan_report(client, days=days, limit=limit)
+        stocks_scan = build_stock_scan_report(client, days=days, from_=from_, to=to, limit=limit)
         rows = [row for row in stocks_scan.get("rows", []) if isinstance(row, dict)]
         if profile_normalized in {"daytrader", "investor"}:
             rows = [row for row in rows if (row.get("platforms") or 0) >= 2]
@@ -356,7 +387,7 @@ def build_market_briefing_report(
         stocks_scan["rows"] = rows
         report["stocks_scan"] = stocks_scan
     if include_crypto:
-        crypto_scan = build_crypto_scan_report(client, days=days, limit=limit)
+        crypto_scan = build_crypto_scan_report(client, days=days, from_=from_, to=to, limit=limit)
         rows = [row for row in crypto_scan.get("rows", []) if isinstance(row, dict)]
         if profile_normalized == "daytrader":
             rows = [row for row in rows if (row.get("mentions") or 0) >= 50]
@@ -366,13 +397,14 @@ def build_market_briefing_report(
         report["crypto_scan"] = crypto_scan
 
     if profile_normalized in {"investor", "research", "portfolio"}:
-        report["reddit_sectors"] = _call_safe(lambda: client.reddit.trending_sectors(days=days, limit=5, offset=0))
-        report["reddit_countries"] = _call_safe(lambda: client.reddit.trending_countries(days=days, limit=5, offset=0))
+        period = _period_kwargs(days, from_, to)
+        report["reddit_sectors"] = _call_safe(lambda: client.reddit.trending_sectors(**period, limit=5, offset=0))
+        report["reddit_countries"] = _call_safe(lambda: client.reddit.trending_countries(**period, limit=5, offset=0))
 
     if stock_focus:
-        report["stock_focus"] = build_stock_compare_report(client, stock_focus, days=days)
+        report["stock_focus"] = build_stock_compare_report(client, stock_focus, days=days, from_=from_, to=to)
     if crypto_focus:
-        report["crypto_focus"] = build_crypto_compare_report(client, crypto_focus, days=days)
+        report["crypto_focus"] = build_crypto_compare_report(client, crypto_focus, days=days, from_=from_, to=to)
 
     stock_rows = []
     crypto_rows = []

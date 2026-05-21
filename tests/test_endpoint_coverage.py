@@ -16,27 +16,27 @@ NEWS_ENDPOINT_IDS = {
     "news-stocks.trending": {
         "path": "/news/stocks/v1/trending",
         "required": tuple(),
-        "optional": ("days", "limit", "offset", "type", "source"),
+        "optional": ("from", "to", "days", "limit", "offset", "type", "source"),
     },
     "news-stocks.trending.sectors": {
         "path": "/news/stocks/v1/trending/sectors",
         "required": tuple(),
-        "optional": ("days", "limit", "offset", "source"),
+        "optional": ("from", "to", "days", "limit", "offset", "source"),
     },
     "news-stocks.trending.countries": {
         "path": "/news/stocks/v1/trending/countries",
         "required": tuple(),
-        "optional": ("days", "limit", "offset", "source"),
+        "optional": ("from", "to", "days", "limit", "offset", "source"),
     },
     "news-stocks.stock": {
         "path": "/news/stocks/v1/stock/{ticker}",
         "required": ("ticker",),
-        "optional": ("days",),
+        "optional": ("from", "to", "days"),
     },
     "news-stocks.stock.mentions": {
         "path": "/news/stocks/v1/stock/{ticker}/mentions",
         "required": ("ticker",),
-        "optional": ("days", "limit", "offset"),
+        "optional": ("from", "to", "days", "limit", "offset"),
     },
     "news-stocks.stock.explain": {
         "path": "/news/stocks/v1/stock/{ticker}/explain",
@@ -46,17 +46,17 @@ NEWS_ENDPOINT_IDS = {
     "news-stocks.search": {
         "path": "/news/stocks/v1/search",
         "required": ("q",),
-        "optional": ("days", "limit"),
+        "optional": ("from", "to", "days", "limit"),
     },
     "news-stocks.compare": {
         "path": "/news/stocks/v1/compare",
         "required": ("tickers",),
-        "optional": ("days",),
+        "optional": ("from", "to", "days"),
     },
     "news-stocks.market-sentiment": {
         "path": "/news/stocks/v1/market-sentiment",
         "required": tuple(),
-        "optional": ("days",),
+        "optional": ("from", "to", "days"),
     },
     "news-stocks.stats": {
         "path": "/news/stocks/v1/stats",
@@ -112,11 +112,11 @@ def test_x_explain_endpoint_spec_is_complete() -> None:
 
 def test_raw_mention_endpoint_specs_support_offset() -> None:
     expected = {
-        "reddit-stocks.stock.mentions": ("days", "limit", "offset", "include_inherited"),
-        "news-stocks.stock.mentions": ("days", "limit", "offset"),
-        "reddit-crypto.token.mentions": ("days", "limit", "offset", "include_inherited"),
-        "x-stocks.stock.mentions": ("days", "limit", "offset"),
-        "polymarket-stocks.stock.mentions": ("days", "limit", "offset"),
+        "reddit-stocks.stock.mentions": ("from", "to", "days", "limit", "offset", "include_inherited"),
+        "news-stocks.stock.mentions": ("from", "to", "days", "limit", "offset"),
+        "reddit-crypto.token.mentions": ("from", "to", "days", "limit", "offset", "include_inherited"),
+        "x-stocks.stock.mentions": ("from", "to", "days", "limit", "offset"),
+        "polymarket-stocks.stock.mentions": ("from", "to", "days", "limit", "offset"),
     }
     for endpoint_id, optional_params in expected.items():
         assert ENDPOINTS[endpoint_id].optional_params == optional_params
@@ -150,6 +150,37 @@ def test_invoke_endpoint_search_passes_days_and_limit() -> None:
     client = DummyClient()
     invoke_endpoint(client, "news-stocks.search", Namespace(q="Tesla", days=14, limit=5, source=None))
     assert client.news.calls == [("Tesla", 14, 5)]
+
+
+def test_invoke_endpoint_search_passes_from_to_without_days() -> None:
+    class DummyNews:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str | None, str | None, int]] = []
+
+        def search(
+            self,
+            query: str,
+            *,
+            from_: str | None = None,
+            to: str | None = None,
+            days: int | None = None,
+            limit: int = 20,
+        ) -> dict[str, int | str]:
+            assert days is None
+            self.calls.append((query, from_, to, limit))
+            return {"query": query, "count": 1}
+
+    class DummyClient:
+        def __init__(self) -> None:
+            self.news = DummyNews()
+
+    client = DummyClient()
+    invoke_endpoint(
+        client,
+        "news-stocks.search",
+        Namespace(q="Tesla", days=None, from_="2026-05-01", to="2026-05-07", limit=5, source=None),
+    )
+    assert client.news.calls == [("Tesla", "2026-05-01", "2026-05-07", 5)]
 
 
 def test_invoke_endpoint_market_sentiment_passes_days() -> None:

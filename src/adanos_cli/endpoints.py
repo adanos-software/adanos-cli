@@ -22,8 +22,31 @@ class EndpointSpec:
     invoke: Callable[[Any, Namespace], Any]
 
 
+PERIOD_PARAMS = ("from", "to", "days")
+TRENDING_PARAMS = (*PERIOD_PARAMS, "limit", "offset")
+TRENDING_TYPE_PARAMS = (*TRENDING_PARAMS, "type")
+SEARCH_PARAMS = (*PERIOD_PARAMS, "limit")
+RAW_MENTION_PARAMS = (*PERIOD_PARAMS, "limit", "offset")
+
+
 def _with_default(value: Any, default: Any) -> Any:
     return default if value is None else value
+
+
+def _period_kwargs(args: Namespace, *, default_days: int) -> dict[str, Any]:
+    from_value = getattr(args, "from_", None)
+    to_value = getattr(args, "to", None)
+    days = getattr(args, "days", None)
+    if days is None and not from_value and not to_value:
+        days = default_days
+    kwargs: dict[str, Any] = {}
+    if days is not None:
+        kwargs["days"] = days
+    if from_value:
+        kwargs["from_"] = from_value
+    if to_value:
+        kwargs["to"] = to_value
+    return kwargs
 
 
 def _raw_get_json(client: Any, path: str) -> Any:
@@ -65,7 +88,7 @@ def _require_symbols(args: Namespace) -> list[str]:
 
 def _reddit_stocks_trending(client: Any, args: Namespace) -> Any:
     return client.reddit.trending(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
         type=args.type,
@@ -74,7 +97,7 @@ def _reddit_stocks_trending(client: Any, args: Namespace) -> Any:
 
 def _reddit_stocks_trending_sectors(client: Any, args: Namespace) -> Any:
     return client.reddit.trending_sectors(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
     )
@@ -82,20 +105,20 @@ def _reddit_stocks_trending_sectors(client: Any, args: Namespace) -> Any:
 
 def _reddit_stocks_trending_countries(client: Any, args: Namespace) -> Any:
     return client.reddit.trending_countries(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
     )
 
 
 def _reddit_stocks_stock(client: Any, args: Namespace) -> Any:
-    return client.reddit.stock(_require_str(args, "ticker"), days=_with_default(args.days, 7))
+    return client.reddit.stock(_require_str(args, "ticker"), **_period_kwargs(args, default_days=7))
 
 
 def _reddit_stocks_mentions(client: Any, args: Namespace) -> Any:
     return client.reddit.mentions(
         _require_str(args, "ticker"),
-        days=_with_default(args.days, 7),
+        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 100),
         offset=_with_default(args.offset, 0),
         include_inherited=bool(getattr(args, "include_inherited", False)),
@@ -109,17 +132,17 @@ def _reddit_stocks_explain(client: Any, args: Namespace) -> Any:
 def _reddit_stocks_search(client: Any, args: Namespace) -> Any:
     return client.reddit.search(
         _require_str(args, "q", "query"),
-        days=_with_default(args.days, 7),
+        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 20),
     )
 
 
 def _reddit_stocks_compare(client: Any, args: Namespace) -> Any:
-    return client.reddit.compare(_require_tickers(args), days=_with_default(args.days, 7))
+    return client.reddit.compare(_require_tickers(args), **_period_kwargs(args, default_days=7))
 
 
 def _reddit_stocks_market_sentiment(client: Any, args: Namespace) -> Any:
-    return client.reddit.market_sentiment(days=_with_default(args.days, 1))
+    return client.reddit.market_sentiment(**_period_kwargs(args, default_days=1))
 
 
 def _reddit_stocks_stats(client: Any, args: Namespace) -> Any:
@@ -134,7 +157,7 @@ def _reddit_stocks_health(client: Any, args: Namespace) -> Any:
 
 def _news_stocks_trending(client: Any, args: Namespace) -> Any:
     return client.news.trending(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
         type=args.type,
@@ -144,7 +167,7 @@ def _news_stocks_trending(client: Any, args: Namespace) -> Any:
 
 def _news_stocks_trending_sectors(client: Any, args: Namespace) -> Any:
     return client.news.trending_sectors(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
         source=getattr(args, "source", None),
@@ -153,7 +176,7 @@ def _news_stocks_trending_sectors(client: Any, args: Namespace) -> Any:
 
 def _news_stocks_trending_countries(client: Any, args: Namespace) -> Any:
     return client.news.trending_countries(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
         source=getattr(args, "source", None),
@@ -163,14 +186,14 @@ def _news_stocks_trending_countries(client: Any, args: Namespace) -> Any:
 def _news_stocks_stock(client: Any, args: Namespace) -> Any:
     return client.news.stock(
         _require_str(args, "ticker"),
-        days=_with_default(args.days, 7),
+        **_period_kwargs(args, default_days=7),
     )
 
 
 def _news_stocks_mentions(client: Any, args: Namespace) -> Any:
     return client.news.mentions(
         _require_str(args, "ticker"),
-        days=_with_default(args.days, 7),
+        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 100),
         offset=_with_default(args.offset, 0),
     )
@@ -183,7 +206,7 @@ def _news_stocks_explain(client: Any, args: Namespace) -> Any:
 def _news_stocks_search(client: Any, args: Namespace) -> Any:
     return client.news.search(
         _require_str(args, "q", "query"),
-        days=_with_default(args.days, 7),
+        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 20),
     )
 
@@ -191,12 +214,12 @@ def _news_stocks_search(client: Any, args: Namespace) -> Any:
 def _news_stocks_compare(client: Any, args: Namespace) -> Any:
     return client.news.compare(
         _require_tickers(args),
-        days=_with_default(args.days, 7),
+        **_period_kwargs(args, default_days=7),
     )
 
 
 def _news_stocks_market_sentiment(client: Any, args: Namespace) -> Any:
-    return client.news.market_sentiment(days=_with_default(args.days, 1))
+    return client.news.market_sentiment(**_period_kwargs(args, default_days=1))
 
 
 def _news_stocks_stats(client: Any, args: Namespace) -> Any:
@@ -211,20 +234,20 @@ def _news_stocks_health(client: Any, args: Namespace) -> Any:
 
 def _reddit_crypto_trending(client: Any, args: Namespace) -> Any:
     return client.crypto.trending(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
     )
 
 
 def _reddit_crypto_token(client: Any, args: Namespace) -> Any:
-    return client.crypto.token(_require_str(args, "symbol"), days=_with_default(args.days, 7))
+    return client.crypto.token(_require_str(args, "symbol"), **_period_kwargs(args, default_days=7))
 
 
 def _reddit_crypto_mentions(client: Any, args: Namespace) -> Any:
     return client.crypto.mentions(
         _require_str(args, "symbol"),
-        days=_with_default(args.days, 7),
+        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 100),
         offset=_with_default(args.offset, 0),
         include_inherited=bool(getattr(args, "include_inherited", False)),
@@ -234,17 +257,17 @@ def _reddit_crypto_mentions(client: Any, args: Namespace) -> Any:
 def _reddit_crypto_search(client: Any, args: Namespace) -> Any:
     return client.crypto.search(
         _require_str(args, "q", "query"),
-        days=_with_default(args.days, 7),
+        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 20),
     )
 
 
 def _reddit_crypto_compare(client: Any, args: Namespace) -> Any:
-    return client.crypto.compare(_require_symbols(args), days=_with_default(args.days, 7))
+    return client.crypto.compare(_require_symbols(args), **_period_kwargs(args, default_days=7))
 
 
 def _reddit_crypto_market_sentiment(client: Any, args: Namespace) -> Any:
-    return client.crypto.market_sentiment(days=_with_default(args.days, 1))
+    return client.crypto.market_sentiment(**_period_kwargs(args, default_days=1))
 
 
 def _reddit_crypto_stats(client: Any, args: Namespace) -> Any:
@@ -259,7 +282,7 @@ def _reddit_crypto_health(client: Any, args: Namespace) -> Any:
 
 def _x_stocks_trending(client: Any, args: Namespace) -> Any:
     return client.x.trending(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
         type=args.type,
@@ -268,7 +291,7 @@ def _x_stocks_trending(client: Any, args: Namespace) -> Any:
 
 def _x_stocks_trending_sectors(client: Any, args: Namespace) -> Any:
     return client.x.trending_sectors(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
     )
@@ -276,20 +299,20 @@ def _x_stocks_trending_sectors(client: Any, args: Namespace) -> Any:
 
 def _x_stocks_trending_countries(client: Any, args: Namespace) -> Any:
     return client.x.trending_countries(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
     )
 
 
 def _x_stocks_stock(client: Any, args: Namespace) -> Any:
-    return client.x.stock(_require_str(args, "ticker"), days=_with_default(args.days, 7))
+    return client.x.stock(_require_str(args, "ticker"), **_period_kwargs(args, default_days=7))
 
 
 def _x_stocks_mentions(client: Any, args: Namespace) -> Any:
     return client.x.mentions(
         _require_str(args, "ticker"),
-        days=_with_default(args.days, 7),
+        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 100),
         offset=_with_default(args.offset, 0),
     )
@@ -302,17 +325,17 @@ def _x_stocks_explain(client: Any, args: Namespace) -> Any:
 def _x_stocks_search(client: Any, args: Namespace) -> Any:
     return client.x.search(
         _require_str(args, "q", "query"),
-        days=_with_default(args.days, 7),
+        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 20),
     )
 
 
 def _x_stocks_compare(client: Any, args: Namespace) -> Any:
-    return client.x.compare(_require_tickers(args), days=_with_default(args.days, 7))
+    return client.x.compare(_require_tickers(args), **_period_kwargs(args, default_days=7))
 
 
 def _x_stocks_market_sentiment(client: Any, args: Namespace) -> Any:
-    return client.x.market_sentiment(days=_with_default(args.days, 1))
+    return client.x.market_sentiment(**_period_kwargs(args, default_days=1))
 
 
 def _x_stocks_stats(client: Any, args: Namespace) -> Any:
@@ -327,7 +350,7 @@ def _x_stocks_health(client: Any, args: Namespace) -> Any:
 
 def _polymarket_stocks_trending(client: Any, args: Namespace) -> Any:
     return client.polymarket.trending(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
         type=args.type,
@@ -336,7 +359,7 @@ def _polymarket_stocks_trending(client: Any, args: Namespace) -> Any:
 
 def _polymarket_stocks_trending_sectors(client: Any, args: Namespace) -> Any:
     return client.polymarket.trending_sectors(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
     )
@@ -344,20 +367,20 @@ def _polymarket_stocks_trending_sectors(client: Any, args: Namespace) -> Any:
 
 def _polymarket_stocks_trending_countries(client: Any, args: Namespace) -> Any:
     return client.polymarket.trending_countries(
-        days=_with_default(args.days, 1),
+        **_period_kwargs(args, default_days=1),
         limit=_with_default(args.limit, 20),
         offset=_with_default(args.offset, 0),
     )
 
 
 def _polymarket_stocks_stock(client: Any, args: Namespace) -> Any:
-    return client.polymarket.stock(_require_str(args, "ticker"), days=_with_default(args.days, 7))
+    return client.polymarket.stock(_require_str(args, "ticker"), **_period_kwargs(args, default_days=7))
 
 
 def _polymarket_stocks_mentions(client: Any, args: Namespace) -> Any:
     return client.polymarket.mentions(
         _require_str(args, "ticker"),
-        days=_with_default(args.days, 7),
+        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 100),
         offset=_with_default(args.offset, 0),
     )
@@ -366,17 +389,17 @@ def _polymarket_stocks_mentions(client: Any, args: Namespace) -> Any:
 def _polymarket_stocks_search(client: Any, args: Namespace) -> Any:
     return client.polymarket.search(
         _require_str(args, "q", "query"),
-        days=_with_default(args.days, 7),
+        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 20),
     )
 
 
 def _polymarket_stocks_compare(client: Any, args: Namespace) -> Any:
-    return client.polymarket.compare(_require_tickers(args), days=_with_default(args.days, 7))
+    return client.polymarket.compare(_require_tickers(args), **_period_kwargs(args, default_days=7))
 
 
 def _polymarket_stocks_market_sentiment(client: Any, args: Namespace) -> Any:
-    return client.polymarket.market_sentiment(days=_with_default(args.days, 1))
+    return client.polymarket.market_sentiment(**_period_kwargs(args, default_days=1))
 
 
 def _polymarket_stocks_stats(client: Any, args: Namespace) -> Any:
@@ -398,19 +421,19 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     ),
     # News Stocks
     "news-stocks.trending": EndpointSpec(
-        "news-stocks.trending", "/news/stocks/v1/trending", "Trending News stocks", tuple(), ("days", "limit", "offset", "type", "source"), _news_stocks_trending
+        "news-stocks.trending", "/news/stocks/v1/trending", "Trending News stocks", tuple(), (*TRENDING_TYPE_PARAMS, "source"), _news_stocks_trending
     ),
     "news-stocks.trending.sectors": EndpointSpec(
-        "news-stocks.trending.sectors", "/news/stocks/v1/trending/sectors", "Trending News sectors", tuple(), ("days", "limit", "offset", "source"), _news_stocks_trending_sectors
+        "news-stocks.trending.sectors", "/news/stocks/v1/trending/sectors", "Trending News sectors", tuple(), (*TRENDING_PARAMS, "source"), _news_stocks_trending_sectors
     ),
     "news-stocks.trending.countries": EndpointSpec(
-        "news-stocks.trending.countries", "/news/stocks/v1/trending/countries", "Trending News countries", tuple(), ("days", "limit", "offset", "source"), _news_stocks_trending_countries
+        "news-stocks.trending.countries", "/news/stocks/v1/trending/countries", "Trending News countries", tuple(), (*TRENDING_PARAMS, "source"), _news_stocks_trending_countries
     ),
     "news-stocks.stock": EndpointSpec(
-        "news-stocks.stock", "/news/stocks/v1/stock/{ticker}", "Stock detail in News", ("ticker",), ("days",), _news_stocks_stock
+        "news-stocks.stock", "/news/stocks/v1/stock/{ticker}", "Stock detail in News", ("ticker",), PERIOD_PARAMS, _news_stocks_stock
     ),
     "news-stocks.stock.mentions": EndpointSpec(
-        "news-stocks.stock.mentions", "/news/stocks/v1/stock/{ticker}/mentions", "Raw News mentions for a stock", ("ticker",), ("days", "limit", "offset"), _news_stocks_mentions
+        "news-stocks.stock.mentions", "/news/stocks/v1/stock/{ticker}/mentions", "Raw News mentions for a stock", ("ticker",), RAW_MENTION_PARAMS, _news_stocks_mentions
     ),
     "news-stocks.stock.explain": EndpointSpec(
         "news-stocks.stock.explain", "/news/stocks/v1/stock/{ticker}/explain", "AI explanation for News stock trend", ("ticker",), tuple(), _news_stocks_explain
@@ -420,14 +443,14 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "/news/stocks/v1/search",
         "Search News stocks",
         ("q",),
-        ("days", "limit"),
+        SEARCH_PARAMS,
         _news_stocks_search,
     ),
     "news-stocks.compare": EndpointSpec(
-        "news-stocks.compare", "/news/stocks/v1/compare", "Compare News stocks", ("tickers",), ("days",), _news_stocks_compare
+        "news-stocks.compare", "/news/stocks/v1/compare", "Compare News stocks", ("tickers",), PERIOD_PARAMS, _news_stocks_compare
     ),
     "news-stocks.market-sentiment": EndpointSpec(
-        "news-stocks.market-sentiment", "/news/stocks/v1/market-sentiment", "Service-level News market sentiment", tuple(), ("days",), _news_stocks_market_sentiment
+        "news-stocks.market-sentiment", "/news/stocks/v1/market-sentiment", "Service-level News market sentiment", tuple(), PERIOD_PARAMS, _news_stocks_market_sentiment
     ),
     "news-stocks.stats": EndpointSpec(
         "news-stocks.stats", "/news/stocks/v1/stats", "News stocks stats", tuple(), tuple(), _news_stocks_stats
@@ -437,19 +460,19 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     ),
     # Reddit Stocks
     "reddit-stocks.trending": EndpointSpec(
-        "reddit-stocks.trending", "/reddit/stocks/v1/trending", "Trending Reddit stocks", tuple(), ("days", "limit", "offset", "type"), _reddit_stocks_trending
+        "reddit-stocks.trending", "/reddit/stocks/v1/trending", "Trending Reddit stocks", tuple(), TRENDING_TYPE_PARAMS, _reddit_stocks_trending
     ),
     "reddit-stocks.trending.sectors": EndpointSpec(
-        "reddit-stocks.trending.sectors", "/reddit/stocks/v1/trending/sectors", "Trending Reddit sectors", tuple(), ("days", "limit", "offset"), _reddit_stocks_trending_sectors
+        "reddit-stocks.trending.sectors", "/reddit/stocks/v1/trending/sectors", "Trending Reddit sectors", tuple(), TRENDING_PARAMS, _reddit_stocks_trending_sectors
     ),
     "reddit-stocks.trending.countries": EndpointSpec(
-        "reddit-stocks.trending.countries", "/reddit/stocks/v1/trending/countries", "Trending Reddit countries", tuple(), ("days", "limit", "offset"), _reddit_stocks_trending_countries
+        "reddit-stocks.trending.countries", "/reddit/stocks/v1/trending/countries", "Trending Reddit countries", tuple(), TRENDING_PARAMS, _reddit_stocks_trending_countries
     ),
     "reddit-stocks.stock": EndpointSpec(
-        "reddit-stocks.stock", "/reddit/stocks/v1/stock/{ticker}", "Stock detail on Reddit", ("ticker",), ("days",), _reddit_stocks_stock
+        "reddit-stocks.stock", "/reddit/stocks/v1/stock/{ticker}", "Stock detail on Reddit", ("ticker",), PERIOD_PARAMS, _reddit_stocks_stock
     ),
     "reddit-stocks.stock.mentions": EndpointSpec(
-        "reddit-stocks.stock.mentions", "/reddit/stocks/v1/stock/{ticker}/mentions", "Raw Reddit mentions for a stock", ("ticker",), ("days", "limit", "offset", "include_inherited"), _reddit_stocks_mentions
+        "reddit-stocks.stock.mentions", "/reddit/stocks/v1/stock/{ticker}/mentions", "Raw Reddit mentions for a stock", ("ticker",), (*RAW_MENTION_PARAMS, "include_inherited"), _reddit_stocks_mentions
     ),
     "reddit-stocks.stock.explain": EndpointSpec(
         "reddit-stocks.stock.explain", "/reddit/stocks/v1/stock/{ticker}/explain", "AI explanation for Reddit stock trend", ("ticker",), tuple(), _reddit_stocks_explain
@@ -459,14 +482,14 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "/reddit/stocks/v1/search",
         "Search Reddit stocks",
         ("q",),
-        ("days", "limit"),
+        SEARCH_PARAMS,
         _reddit_stocks_search,
     ),
     "reddit-stocks.compare": EndpointSpec(
-        "reddit-stocks.compare", "/reddit/stocks/v1/compare", "Compare Reddit stocks", ("tickers",), ("days",), _reddit_stocks_compare
+        "reddit-stocks.compare", "/reddit/stocks/v1/compare", "Compare Reddit stocks", ("tickers",), PERIOD_PARAMS, _reddit_stocks_compare
     ),
     "reddit-stocks.market-sentiment": EndpointSpec(
-        "reddit-stocks.market-sentiment", "/reddit/stocks/v1/market-sentiment", "Service-level Reddit market sentiment", tuple(), ("days",), _reddit_stocks_market_sentiment
+        "reddit-stocks.market-sentiment", "/reddit/stocks/v1/market-sentiment", "Service-level Reddit market sentiment", tuple(), PERIOD_PARAMS, _reddit_stocks_market_sentiment
     ),
     "reddit-stocks.stats": EndpointSpec(
         "reddit-stocks.stats", "/reddit/stocks/v1/stats", "Reddit stocks stats", tuple(), tuple(), _reddit_stocks_stats
@@ -476,27 +499,27 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     ),
     # Reddit Crypto
     "reddit-crypto.trending": EndpointSpec(
-        "reddit-crypto.trending", "/reddit/crypto/v1/trending", "Trending Reddit crypto tokens", tuple(), ("days", "limit", "offset"), _reddit_crypto_trending
+        "reddit-crypto.trending", "/reddit/crypto/v1/trending", "Trending Reddit crypto tokens", tuple(), TRENDING_PARAMS, _reddit_crypto_trending
     ),
     "reddit-crypto.token": EndpointSpec(
-        "reddit-crypto.token", "/reddit/crypto/v1/token/{symbol}", "Crypto token detail on Reddit", ("symbol",), ("days",), _reddit_crypto_token
+        "reddit-crypto.token", "/reddit/crypto/v1/token/{symbol}", "Crypto token detail on Reddit", ("symbol",), PERIOD_PARAMS, _reddit_crypto_token
     ),
     "reddit-crypto.token.mentions": EndpointSpec(
-        "reddit-crypto.token.mentions", "/reddit/crypto/v1/token/{symbol}/mentions", "Raw Reddit mentions for a crypto token", ("symbol",), ("days", "limit", "offset", "include_inherited"), _reddit_crypto_mentions
+        "reddit-crypto.token.mentions", "/reddit/crypto/v1/token/{symbol}/mentions", "Raw Reddit mentions for a crypto token", ("symbol",), (*RAW_MENTION_PARAMS, "include_inherited"), _reddit_crypto_mentions
     ),
     "reddit-crypto.search": EndpointSpec(
         "reddit-crypto.search",
         "/reddit/crypto/v1/search",
         "Search Reddit crypto tokens",
         ("q",),
-        ("days", "limit"),
+        SEARCH_PARAMS,
         _reddit_crypto_search,
     ),
     "reddit-crypto.compare": EndpointSpec(
-        "reddit-crypto.compare", "/reddit/crypto/v1/compare", "Compare Reddit crypto tokens", ("symbols",), ("days",), _reddit_crypto_compare
+        "reddit-crypto.compare", "/reddit/crypto/v1/compare", "Compare Reddit crypto tokens", ("symbols",), PERIOD_PARAMS, _reddit_crypto_compare
     ),
     "reddit-crypto.market-sentiment": EndpointSpec(
-        "reddit-crypto.market-sentiment", "/reddit/crypto/v1/market-sentiment", "Service-level Reddit crypto market sentiment", tuple(), ("days",), _reddit_crypto_market_sentiment
+        "reddit-crypto.market-sentiment", "/reddit/crypto/v1/market-sentiment", "Service-level Reddit crypto market sentiment", tuple(), PERIOD_PARAMS, _reddit_crypto_market_sentiment
     ),
     "reddit-crypto.stats": EndpointSpec(
         "reddit-crypto.stats", "/reddit/crypto/v1/stats", "Reddit crypto stats", tuple(), tuple(), _reddit_crypto_stats
@@ -506,19 +529,19 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     ),
     # X Stocks
     "x-stocks.trending": EndpointSpec(
-        "x-stocks.trending", "/x/stocks/v1/trending", "Trending X/Twitter stocks", tuple(), ("days", "limit", "offset", "type"), _x_stocks_trending
+        "x-stocks.trending", "/x/stocks/v1/trending", "Trending X/Twitter stocks", tuple(), TRENDING_TYPE_PARAMS, _x_stocks_trending
     ),
     "x-stocks.trending.sectors": EndpointSpec(
-        "x-stocks.trending.sectors", "/x/stocks/v1/trending/sectors", "Trending X/Twitter sectors", tuple(), ("days", "limit", "offset"), _x_stocks_trending_sectors
+        "x-stocks.trending.sectors", "/x/stocks/v1/trending/sectors", "Trending X/Twitter sectors", tuple(), TRENDING_PARAMS, _x_stocks_trending_sectors
     ),
     "x-stocks.trending.countries": EndpointSpec(
-        "x-stocks.trending.countries", "/x/stocks/v1/trending/countries", "Trending X/Twitter countries", tuple(), ("days", "limit", "offset"), _x_stocks_trending_countries
+        "x-stocks.trending.countries", "/x/stocks/v1/trending/countries", "Trending X/Twitter countries", tuple(), TRENDING_PARAMS, _x_stocks_trending_countries
     ),
     "x-stocks.stock": EndpointSpec(
-        "x-stocks.stock", "/x/stocks/v1/stock/{ticker}", "Stock detail on X/Twitter", ("ticker",), ("days",), _x_stocks_stock
+        "x-stocks.stock", "/x/stocks/v1/stock/{ticker}", "Stock detail on X/Twitter", ("ticker",), PERIOD_PARAMS, _x_stocks_stock
     ),
     "x-stocks.stock.mentions": EndpointSpec(
-        "x-stocks.stock.mentions", "/x/stocks/v1/stock/{ticker}/mentions", "Raw X/Twitter mentions for a stock", ("ticker",), ("days", "limit", "offset"), _x_stocks_mentions
+        "x-stocks.stock.mentions", "/x/stocks/v1/stock/{ticker}/mentions", "Raw X/Twitter mentions for a stock", ("ticker",), RAW_MENTION_PARAMS, _x_stocks_mentions
     ),
     "x-stocks.stock.explain": EndpointSpec(
         "x-stocks.stock.explain", "/x/stocks/v1/stock/{ticker}/explain", "AI explanation for X/Twitter stock trend", ("ticker",), tuple(), _x_stocks_explain
@@ -528,14 +551,14 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "/x/stocks/v1/search",
         "Search X/Twitter stocks",
         ("q",),
-        ("days", "limit"),
+        SEARCH_PARAMS,
         _x_stocks_search,
     ),
     "x-stocks.compare": EndpointSpec(
-        "x-stocks.compare", "/x/stocks/v1/compare", "Compare X/Twitter stocks", ("tickers",), ("days",), _x_stocks_compare
+        "x-stocks.compare", "/x/stocks/v1/compare", "Compare X/Twitter stocks", ("tickers",), PERIOD_PARAMS, _x_stocks_compare
     ),
     "x-stocks.market-sentiment": EndpointSpec(
-        "x-stocks.market-sentiment", "/x/stocks/v1/market-sentiment", "Service-level X/Twitter market sentiment", tuple(), ("days",), _x_stocks_market_sentiment
+        "x-stocks.market-sentiment", "/x/stocks/v1/market-sentiment", "Service-level X/Twitter market sentiment", tuple(), PERIOD_PARAMS, _x_stocks_market_sentiment
     ),
     "x-stocks.stats": EndpointSpec(
         "x-stocks.stats", "/x/stocks/v1/stats", "X/Twitter stocks stats", tuple(), tuple(), _x_stocks_stats
@@ -545,33 +568,33 @@ ENDPOINTS: dict[str, EndpointSpec] = {
     ),
     # Polymarket Stocks
     "polymarket-stocks.trending": EndpointSpec(
-        "polymarket-stocks.trending", "/polymarket/stocks/v1/trending", "Trending Polymarket stocks", tuple(), ("days", "limit", "offset", "type"), _polymarket_stocks_trending
+        "polymarket-stocks.trending", "/polymarket/stocks/v1/trending", "Trending Polymarket stocks", tuple(), TRENDING_TYPE_PARAMS, _polymarket_stocks_trending
     ),
     "polymarket-stocks.trending.sectors": EndpointSpec(
-        "polymarket-stocks.trending.sectors", "/polymarket/stocks/v1/trending/sectors", "Trending Polymarket sectors", tuple(), ("days", "limit", "offset"), _polymarket_stocks_trending_sectors
+        "polymarket-stocks.trending.sectors", "/polymarket/stocks/v1/trending/sectors", "Trending Polymarket sectors", tuple(), TRENDING_PARAMS, _polymarket_stocks_trending_sectors
     ),
     "polymarket-stocks.trending.countries": EndpointSpec(
-        "polymarket-stocks.trending.countries", "/polymarket/stocks/v1/trending/countries", "Trending Polymarket countries", tuple(), ("days", "limit", "offset"), _polymarket_stocks_trending_countries
+        "polymarket-stocks.trending.countries", "/polymarket/stocks/v1/trending/countries", "Trending Polymarket countries", tuple(), TRENDING_PARAMS, _polymarket_stocks_trending_countries
     ),
     "polymarket-stocks.stock": EndpointSpec(
-        "polymarket-stocks.stock", "/polymarket/stocks/v1/stock/{ticker}", "Stock detail on Polymarket", ("ticker",), ("days",), _polymarket_stocks_stock
+        "polymarket-stocks.stock", "/polymarket/stocks/v1/stock/{ticker}", "Stock detail on Polymarket", ("ticker",), PERIOD_PARAMS, _polymarket_stocks_stock
     ),
     "polymarket-stocks.stock.mentions": EndpointSpec(
-        "polymarket-stocks.stock.mentions", "/polymarket/stocks/v1/stock/{ticker}/mentions", "Raw Polymarket mentions for a stock", ("ticker",), ("days", "limit", "offset"), _polymarket_stocks_mentions
+        "polymarket-stocks.stock.mentions", "/polymarket/stocks/v1/stock/{ticker}/mentions", "Raw Polymarket mentions for a stock", ("ticker",), RAW_MENTION_PARAMS, _polymarket_stocks_mentions
     ),
     "polymarket-stocks.search": EndpointSpec(
         "polymarket-stocks.search",
         "/polymarket/stocks/v1/search",
         "Search Polymarket stocks",
         ("q",),
-        ("days", "limit"),
+        SEARCH_PARAMS,
         _polymarket_stocks_search,
     ),
     "polymarket-stocks.compare": EndpointSpec(
-        "polymarket-stocks.compare", "/polymarket/stocks/v1/compare", "Compare Polymarket stocks", ("tickers",), ("days",), _polymarket_stocks_compare
+        "polymarket-stocks.compare", "/polymarket/stocks/v1/compare", "Compare Polymarket stocks", ("tickers",), PERIOD_PARAMS, _polymarket_stocks_compare
     ),
     "polymarket-stocks.market-sentiment": EndpointSpec(
-        "polymarket-stocks.market-sentiment", "/polymarket/stocks/v1/market-sentiment", "Service-level Polymarket market sentiment", tuple(), ("days",), _polymarket_stocks_market_sentiment
+        "polymarket-stocks.market-sentiment", "/polymarket/stocks/v1/market-sentiment", "Service-level Polymarket market sentiment", tuple(), PERIOD_PARAMS, _polymarket_stocks_market_sentiment
     ),
     "polymarket-stocks.stats": EndpointSpec(
         "polymarket-stocks.stats", "/polymarket/stocks/v1/stats", "Polymarket stocks stats", tuple(), tuple(), _polymarket_stocks_stats
