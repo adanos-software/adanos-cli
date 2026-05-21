@@ -755,7 +755,7 @@ def _format_api_detail(detail: Any) -> str | None:
             if isinstance(loc, list):
                 loc_text = ".".join(str(part) for part in loc)
             else:
-                loc_text = str(loc) if loc else ""
+                loc_text = str(loc) if loc is not None else ""
             msg = item.get("msg") or item.get("message") or item.get("error")
             if isinstance(msg, str) and msg.strip():
                 messages.append(f"{loc_text}: {msg.strip()}" if loc_text else msg.strip())

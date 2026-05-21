@@ -143,6 +143,30 @@ def test_endpoint_api_error_payload_raises_runtime_error(monkeypatch) -> None:
         )
 
 
+def test_endpoint_api_error_payload_preserves_integer_location(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cli_main,
+        "invoke_endpoint",
+        lambda client, endpoint_id, args: {
+            "detail": [
+                {
+                    "loc": 0,
+                    "msg": "Input should be a valid item",
+                }
+            ]
+        },
+    )
+
+    with pytest.raises(cli_main.CliRuntimeError, match="0: Input should be a valid item"):
+        cli_main._call_and_emit_endpoint(
+            object(),
+            "news-stocks.trending",
+            Namespace(days=None, from_=None, limit=2),
+            json_mode=True,
+            command="trending",
+        )
+
+
 def test_period_help_uses_plain_inclusive_labels(capsys) -> None:
     assert cli_main.main(["stock", "--help"]) == 0
 
