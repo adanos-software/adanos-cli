@@ -183,6 +183,22 @@ def test_invoke_endpoint_search_passes_from_to_without_days() -> None:
     assert client.news.calls == [("Tesla", "2026-05-01", "2026-05-07", 5)]
 
 
+def test_invoke_endpoint_rejects_days_with_full_date_window() -> None:
+    class DummyNews:
+        def trending(self, **kwargs):
+            return kwargs
+
+    class DummyClient:
+        news = DummyNews()
+
+    with pytest.raises(CliUsageError, match="do not combine --days"):
+        invoke_endpoint(
+            DummyClient(),
+            "news-stocks.trending",
+            Namespace(days=7, from_="2026-05-01", to="2026-05-07", limit=5, offset=0, type=None, source=None),
+        )
+
+
 def test_invoke_endpoint_market_sentiment_passes_days() -> None:
     class DummyNews:
         def __init__(self) -> None:
