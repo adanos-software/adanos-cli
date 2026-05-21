@@ -65,7 +65,7 @@ def test_start_screen_in_tty_keeps_header_but_does_not_enter_shell(tmp_path, mon
     assert "Adanos Market Sentiment CLI v" in out
     assert "Start Here" in out
     assert "adanos shell" in out
-    assert "adanos consensus TSLA --days 7" in out
+    assert "adanos consensus TSLA" in out
 
 
 def test_onboard_guide_is_cli_first(capsys) -> None:

@@ -71,16 +71,16 @@ adanos doctor
 First market checks:
 
 ```bash
-adanos consensus TSLA --days 7
-adanos explain TSLA --profile investor --days 7
-adanos scan --asset stocks --style daytrader --days 7 --top 10
+adanos consensus TSLA
+adanos explain TSLA --profile investor
+adanos scan --asset stocks --style daytrader --top 10
 ```
 
 Crypto:
 
 ```bash
-adanos crypto BTC --days 7
-adanos crypto BTC/ETH --days 7
+adanos crypto BTC
+adanos crypto BTC/ETH
 ```
 
 ## Start Modes
@@ -100,7 +100,7 @@ adanos shell
 One-shot command mode:
 
 ```bash
-adanos stock NVDA --days 7
+adanos stock NVDA
 ```
 
 ## Authentication
@@ -144,26 +144,26 @@ Priority order:
 Stock report:
 
 ```bash
-adanos stock TSLA --days 7
+adanos stock TSLA
 ```
 
 Cross-platform consensus:
 
 ```bash
-adanos consensus TSLA --days 7
+adanos consensus TSLA
 ```
 
 Narrative explanation:
 
 ```bash
-adanos explain TSLA --profile investor --days 7
+adanos explain TSLA --profile investor
 ```
 
 Watchlists:
 
 ```bash
 adanos watchlist add core --asset stocks --symbols TSLA,NVDA,AAPL
-adanos watchlist report core --asset stocks --days 7
+adanos watchlist report core --asset stocks
 adanos watch core --kind watchlist --asset stocks --refresh 60 --iterations 1
 ```
 
@@ -172,13 +172,15 @@ Raw endpoint access:
 ```bash
 adanos endpoint list
 adanos endpoint call root.health
-adanos endpoint call reddit-stocks.trending --days 1 --limit 10
-adanos endpoint call reddit-stocks.market-sentiment --days 7
-adanos endpoint call reddit-stocks.stock.mentions --ticker TSLA --days 7 --limit 10 --offset 10 --include-inherited
+adanos endpoint call reddit-stocks.trending --limit 10
+adanos endpoint call reddit-stocks.market-sentiment --from 2026-05-01 --to 2026-05-07
+adanos endpoint call reddit-stocks.stock.mentions --ticker TSLA --from 2026-05-01 --to 2026-05-07 --limit 10 --offset 10 --include-inherited
 adanos endpoint call x-stocks.stock.explain --ticker TSLA
 ```
 
 Polymarket endpoint output includes both `market_count` for selected-window breadth and `current_market_count` for live-only active-market breadth.
+
+Period-capable commands and endpoint calls accept `--from YYYY-MM-DD` and `--to YYYY-MM-DD` as inclusive UTC date windows. `--days N` remains available for v1 compatibility, but is legacy; combining `--from`, `--to` and `--days` returns API validation error `422`.
 
 ## AI / Automation
 
@@ -189,7 +191,7 @@ adanos --quiet capabilities
 adanos --quiet whoami
 adanos --quiet doctor
 adanos --quiet ask "How does TSLA look?"
-adanos --quiet endpoint call news-stocks.trending --days 1 --limit 3
+adanos --quiet endpoint call news-stocks.trending --limit 3
 ```
 
 JSON conventions:

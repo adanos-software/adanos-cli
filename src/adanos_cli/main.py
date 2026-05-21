@@ -168,10 +168,10 @@ def _print_welcome_screen(base_url: str, *, has_api_key: bool) -> None:
         print("  2) or manual: adanos onboard register ... then redeem the emailed token")
     print("")
     print(_style("Core commands:", fg="cyan", bold=True))
-    print("  adanos stock <TICKER> --days 7")
-    print("  adanos crypto <SYMBOL|SYMBOL/SYMBOL> --days 7")
+    print("  adanos stock <TICKER>")
+    print("  adanos crypto <SYMBOL|SYMBOL/SYMBOL>")
     print("  adanos account")
-    print("  adanos briefing --profile investor --days 30")
+    print("  adanos briefing --profile investor --from 2026-05-01 --to 2026-05-07")
     print("  adanos watchlist report core --asset all")
     print("")
     print(f"More help: {_style('adanos --help', fg='magenta', bold=True)}")
@@ -185,7 +185,7 @@ def _print_start_screen(base_url: str, *, has_api_key: bool, api_key: str | None
     if has_api_key:
         print("  1) Verify config: adanos whoami")
         print("  2) Run diagnostics: adanos doctor")
-        print("  3) First signal: adanos consensus TSLA --days 7")
+        print("  3) First signal: adanos consensus TSLA")
     else:
         print("  1) Login: adanos login --api-key sk_live_xxx")
         print("  2) Inspect config: adanos whoami")
@@ -193,7 +193,7 @@ def _print_start_screen(base_url: str, *, has_api_key: bool, api_key: str | None
     print("")
     print(_style("AI / Automation", fg="cyan", bold=True))
     print("  adanos --quiet capabilities")
-    print("  adanos --quiet consensus TSLA --days 7")
+    print("  adanos --quiet consensus TSLA")
     print("")
     print(_style("Interactive Shell", fg="cyan", bold=True))
     print("  adanos shell")
@@ -243,8 +243,8 @@ def _print_shell_quickstart(*, has_api_key: bool) -> None:
     print(_style("Quick Start", fg="cyan", bold=True))
     if has_api_key:
         print('  Ask in plain text: "How does TSLA look this week?"')
-        print("  Stock report: /stock TSLA --days 7")
-        print("  Crypto report: /crypto BTC/ETH --days 7")
+        print("  Stock report: /stock TSLA")
+        print("  Crypto report: /crypto BTC/ETH")
         print("  Screener: /scan --asset stocks --style starter")
         print("  Plan/Credits: /account")
     else:
@@ -291,10 +291,10 @@ def _print_shell_help(*, has_api_key: bool) -> None:
     print("")
     print("  Analysis")
     print('    /ask "free text question"')
-    print("    /stock TICKER --days 7")
-    print("    /consensus TICKER --days 7")
+    print("    /stock TICKER")
+    print("    /consensus TICKER")
     print("    /explain TICKER --profile investor")
-    print("    /crypto SYMBOL or /crypto BTC/ETH --days 7")
+    print("    /crypto SYMBOL or /crypto BTC/ETH")
     print("    /watch core --kind watchlist --refresh 60")
     print("    /export TSLA --kind consensus --format md")
     print("    /scan --asset stocks|crypto --style starter|daytrader|swing|investor")
@@ -1783,6 +1783,25 @@ def _run_onboard_wizard(args: Namespace, base_url: str, *, json_mode: bool, runt
     return 0
 
 
+def _add_period_args(parser: argparse.ArgumentParser, *, default_days: int) -> None:
+    parser.add_argument("--from", dest="from_", help="Recommended inclusive UTC start date (YYYY-MM-DD)")
+    parser.add_argument("--to", help="Recommended inclusive UTC end date (YYYY-MM-DD)")
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=None,
+        help=f"Legacy lookback shorthand in days (default: {default_days}; prefer --from/--to)",
+    )
+
+
+def _period_from_args(args: Namespace) -> dict[str, Any]:
+    return {
+        "days": getattr(args, "days", None),
+        "from_": getattr(args, "from_", None),
+        "to": getattr(args, "to", None),
+    }
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="adanos",
@@ -1800,7 +1819,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "Automation / AI:\n"
             "  adanos --quiet capabilities\n"
-            "  adanos --quiet consensus TSLA --days 7\n"
+            "  adanos --quiet consensus TSLA\n"
             "\n"
             "Auth resolution:\n"
             "  --api-key flag > ADANOS_API_KEY env var > active profile in credentials.json\n"
@@ -1989,7 +2008,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_watch.add_argument("target", help="Watchlist name or asset symbol")
     p_watch.add_argument("--kind", choices=["watchlist", "stock", "crypto", "consensus"], default="watchlist")
     p_watch.add_argument("--asset", choices=["stocks", "crypto", "all"], default="stocks")
-    p_watch.add_argument("--days", type=int, default=7)
+    _add_period_args(p_watch, default_days=7)
     p_watch.add_argument("--refresh", type=int, default=60, help="Seconds between refreshes")
     p_watch.add_argument("--iterations", type=int, default=0, help="Number of refresh cycles (0 = keep running)")
     p_watch.add_argument("--json", action="store_true")
@@ -1998,7 +2017,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_scan = subs.add_parser("scan", help="Run fast sentiment screeners for stocks or crypto")
     p_scan.add_argument("--asset", choices=["stocks", "crypto"], required=True)
     p_scan.add_argument("--style", choices=["starter", "daytrader", "swing", "investor"], help="Apply preset filters for your trading style")
-    p_scan.add_argument("--days", type=int, default=7)
+    _add_period_args(p_scan, default_days=7)
     p_scan.add_argument("--limit", type=int, default=25, help="Source fetch limit per platform")
     p_scan.add_argument("--top", type=int, default=10, help="Rows to print in text mode")
     p_scan.add_argument("--min-buzz", type=float)
@@ -2011,7 +2030,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_briefing = subs.add_parser("briefing", help="Profile-based market briefing for different investor styles")
     p_briefing.add_argument("--profile", choices=["starter", "daytrader", "swing", "investor", "crypto", "research", "portfolio"], default="starter")
-    p_briefing.add_argument("--days", type=int, default=7)
+    _add_period_args(p_briefing, default_days=7)
     p_briefing.add_argument("--limit", type=int, default=10)
     p_briefing.add_argument("--stocks", help="Optional focus watchlist tickers (comma-separated)")
     p_briefing.add_argument("--crypto", help="Optional focus crypto symbols (comma-separated)")
@@ -2053,7 +2072,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_wl_report = wl_subs.add_parser("report", help="Run report for watchlist symbols")
     p_wl_report.add_argument("name")
     p_wl_report.add_argument("--asset", choices=["stocks", "crypto", "all"], default="stocks")
-    p_wl_report.add_argument("--days", type=int, default=7)
+    _add_period_args(p_wl_report, default_days=7)
     p_wl_report.add_argument("--json", action="store_true")
     p_wl_report.set_defaults(_handler="watchlist_report")
 
@@ -2073,7 +2092,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ep_call.add_argument("--tickers", help="Comma-separated tickers")
     p_ep_call.add_argument("--symbols", help="Comma-separated symbols")
     p_ep_call.add_argument("--assets", help="Generic comma-separated assets (for compare)")
-    p_ep_call.add_argument("--days", type=int)
+    _add_period_args(p_ep_call, default_days=7)
     p_ep_call.add_argument("--limit", type=int)
     p_ep_call.add_argument("--offset", type=int)
     p_ep_call.add_argument("--include-inherited", action="store_true", help="Include inherited Reddit thread context for raw mention endpoints")
@@ -2084,19 +2103,19 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_stock = subs.add_parser("stock", help="Comprehensive stock report across News, Reddit, X, and Polymarket")
     p_stock.add_argument("ticker")
-    p_stock.add_argument("--days", type=int, default=7)
+    _add_period_args(p_stock, default_days=7)
     p_stock.add_argument("--json", action="store_true")
     p_stock.set_defaults(_handler="stock_report")
 
     p_consensus = subs.add_parser("consensus", help="Cross-platform consensus report for a stock ticker")
     p_consensus.add_argument("ticker")
-    p_consensus.add_argument("--days", type=int, default=7)
+    _add_period_args(p_consensus, default_days=7)
     p_consensus.add_argument("--json", action="store_true")
     p_consensus.set_defaults(_handler="consensus_report")
 
     p_explain = subs.add_parser("explain", help="Narrative stock explanation tuned to a reader profile")
     p_explain.add_argument("ticker")
-    p_explain.add_argument("--days", type=int, default=7)
+    _add_period_args(p_explain, default_days=7)
     p_explain.add_argument(
         "--profile",
         choices=["starter", "daytrader", "swing", "investor", "research"],
@@ -2109,7 +2128,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_export.add_argument("target", help="Ticker, symbol, or watchlist name")
     p_export.add_argument("--kind", choices=["stock", "crypto", "consensus", "watchlist"], required=True)
     p_export.add_argument("--asset", choices=["stocks", "crypto", "all"], default="stocks")
-    p_export.add_argument("--days", type=int, default=7)
+    _add_period_args(p_export, default_days=7)
     p_export.add_argument("--format", choices=["json", "md", "csv"], default="json")
     p_export.add_argument("--output-path", help="Optional file path to write instead of stdout")
     p_export.add_argument("--json", action="store_true")
@@ -2117,20 +2136,20 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_crypto = subs.add_parser("crypto", help="Comprehensive crypto report or pair comparison")
     p_crypto.add_argument("symbol_or_pair", help="Single symbol (BTC) or pair (BTC/ETH)")
-    p_crypto.add_argument("--days", type=int, default=7)
+    _add_period_args(p_crypto, default_days=7)
     p_crypto.add_argument("--json", action="store_true")
     p_crypto.set_defaults(_handler="crypto_report")
 
     p_ask = subs.add_parser("ask", help="Natural-language assistant mode")
     p_ask.add_argument("text", nargs="+")
-    p_ask.add_argument("--days", type=int, default=7)
+    _add_period_args(p_ask, default_days=7)
     p_ask.add_argument("--json", action="store_true")
     p_ask.set_defaults(_handler="ask")
 
     p_trending = subs.add_parser("trending", help="Fetch trending lists")
     p_trending.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], required=True)
     p_trending.add_argument("--dimension", choices=["main", "stocks", "sectors", "countries", "tokens"], default="main")
-    p_trending.add_argument("--days", type=int, default=1)
+    _add_period_args(p_trending, default_days=1)
     p_trending.add_argument("--limit", type=int, default=20)
     p_trending.add_argument("--offset", type=int, default=0)
     p_trending.add_argument("--type", choices=["stock", "etf", "all"])
@@ -2141,13 +2160,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_search = subs.add_parser("search", help="Search assets by platform")
     p_search.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], required=True)
     p_search.add_argument("query")
+    _add_period_args(p_search, default_days=7)
     p_search.add_argument("--json", action="store_true")
     p_search.set_defaults(_handler="search")
 
     p_compare = subs.add_parser("compare", help="Compare multiple assets")
     p_compare.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], required=True)
     p_compare.add_argument("assets", help="Comma-separated assets")
-    p_compare.add_argument("--days", type=int, default=7)
+    _add_period_args(p_compare, default_days=7)
     p_compare.add_argument("--json", action="store_true")
     p_compare.set_defaults(_handler="compare")
 
@@ -2344,7 +2364,7 @@ def _scan_thresholds(args: Namespace) -> dict[str, Any]:
 def _run_scan(client: Any, args: Namespace) -> None:
     thresholds = _scan_thresholds(args)
     if args.asset == "stocks":
-        report = build_stock_scan_report(client, days=args.days, limit=args.limit)
+        report = build_stock_scan_report(client, **_period_from_args(args), limit=args.limit)
         rows = [row for row in report.get("rows", []) if isinstance(row, dict)]
         if thresholds.get("min_buzz") is not None:
             rows = [row for row in rows if (row.get("consensus_buzz") or 0) >= thresholds["min_buzz"]]
@@ -2368,7 +2388,7 @@ def _run_scan(client: Any, args: Namespace) -> None:
         print(format_stock_scan_report(report, top=args.top))
         return
 
-    report = build_crypto_scan_report(client, days=args.days, limit=args.limit)
+    report = build_crypto_scan_report(client, **_period_from_args(args), limit=args.limit)
     rows = [row for row in report.get("rows", []) if isinstance(row, dict)]
     if thresholds.get("min_buzz") is not None:
         rows = [row for row in rows if (row.get("buzz_score") or 0) >= thresholds["min_buzz"]]
@@ -2407,7 +2427,7 @@ def _run_briefing(client: Any, args: Namespace) -> None:
     report = build_market_briefing_report(
         client,
         profile=args.profile,
-        days=args.days,
+        **_period_from_args(args),
         limit=args.limit,
         stock_focus=stock_focus,
         crypto_focus=crypto_focus,
@@ -2518,16 +2538,28 @@ def _handle_watchlist_without_api(args: Namespace) -> int:
     raise CliUsageError("Unknown watchlist command")
 
 
-def _build_watchlist_report_payload(client: Any, *, name: str, asset: str, days: int) -> dict[str, Any]:
+def _build_watchlist_report_payload(
+    client: Any,
+    *,
+    name: str,
+    asset: str,
+    days: int | None,
+    from_: str | None = None,
+    to: str | None = None,
+) -> dict[str, Any]:
     payload = get_watchlist(name)
     if payload is None:
         raise CliUsageError(f"Watchlist '{name}' not found")
+    if days is None and not from_ and not to:
+        days = 7
 
     report: dict[str, Any] = {
         "kind": "watchlist_report",
         "name": name,
         "asset": asset,
         "days": days,
+        "from": from_,
+        "to": to,
     }
 
     if asset == "all":
@@ -2541,14 +2573,14 @@ def _build_watchlist_report_payload(client: Any, *, name: str, asset: str, days:
         }
         if stocks_symbols:
             if len(stocks_symbols) == 1:
-                report["stocks"] = build_stock_report(client, stocks_symbols[0], days=days)
+                report["stocks"] = build_stock_report(client, stocks_symbols[0], days=days, from_=from_, to=to)
             else:
-                report["stocks"] = build_stock_compare_report(client, stocks_symbols[:10], days=days)
+                report["stocks"] = build_stock_compare_report(client, stocks_symbols[:10], days=days, from_=from_, to=to)
         if crypto_symbols:
             if len(crypto_symbols) == 1:
-                report["crypto"] = build_crypto_report(client, crypto_symbols[0], days=days)
+                report["crypto"] = build_crypto_report(client, crypto_symbols[0], days=days, from_=from_, to=to)
             else:
-                report["crypto"] = build_crypto_compare_report(client, crypto_symbols[:10], days=days)
+                report["crypto"] = build_crypto_compare_report(client, crypto_symbols[:10], days=days, from_=from_, to=to)
         return report
 
     symbols = payload.get(asset, [])
@@ -2558,15 +2590,15 @@ def _build_watchlist_report_payload(client: Any, *, name: str, asset: str, days:
     report["symbols"] = list(symbols)
     if asset == "stocks":
         if len(symbols) == 1:
-            report["report"] = build_stock_report(client, symbols[0], days=days)
+            report["report"] = build_stock_report(client, symbols[0], days=days, from_=from_, to=to)
             return report
-        report["report"] = build_stock_compare_report(client, symbols[:10], days=days)
+        report["report"] = build_stock_compare_report(client, symbols[:10], days=days, from_=from_, to=to)
         return report
 
     if len(symbols) == 1:
-        report["report"] = build_crypto_report(client, symbols[0], days=days)
+        report["report"] = build_crypto_report(client, symbols[0], days=days, from_=from_, to=to)
         return report
-    report["report"] = build_crypto_compare_report(client, symbols[:10], days=days)
+    report["report"] = build_crypto_compare_report(client, symbols[:10], days=days, from_=from_, to=to)
     return report
 
 
@@ -2613,7 +2645,7 @@ def _run_watchlist_report(client: Any, args: Namespace) -> None:
         client,
         name=args.name,
         asset=args.asset,
-        days=args.days,
+        **_period_from_args(args),
     )
     if args.json:
         print_json(report)
@@ -2622,7 +2654,7 @@ def _run_watchlist_report(client: Any, args: Namespace) -> None:
 
 
 def _run_stock_report(client: Any, args: Namespace) -> None:
-    report = build_stock_report(client, args.ticker, days=args.days)
+    report = build_stock_report(client, args.ticker, **_period_from_args(args))
     if args.json:
         print_json(report)
         return
@@ -2782,7 +2814,7 @@ def _format_consensus_report(payload: dict[str, Any]) -> str:
 
 
 def _run_consensus_report(client: Any, args: Namespace) -> None:
-    stock_report = build_stock_report(client, args.ticker, days=args.days)
+    stock_report = build_stock_report(client, args.ticker, **_period_from_args(args))
     payload = _build_consensus_report(stock_report)
     if args.json:
         print_json(payload)
@@ -2855,7 +2887,7 @@ def _format_explain_report(payload: dict[str, Any]) -> str:
 
 
 def _run_explain_report(client: Any, args: Namespace) -> None:
-    stock_report = build_stock_report(client, args.ticker, days=args.days)
+    stock_report = build_stock_report(client, args.ticker, **_period_from_args(args))
     consensus = _build_consensus_report(stock_report)
     payload = _build_explain_report(consensus, reader_profile=args.profile)
     if args.json:
@@ -2864,20 +2896,29 @@ def _run_explain_report(client: Any, args: Namespace) -> None:
     print(_format_explain_report(payload))
 
 
-def _build_named_report(client: Any, *, kind: str, target: str, days: int, asset: str = "stocks") -> dict[str, Any]:
+def _build_named_report(
+    client: Any,
+    *,
+    kind: str,
+    target: str,
+    days: int | None,
+    from_: str | None = None,
+    to: str | None = None,
+    asset: str = "stocks",
+) -> dict[str, Any]:
     if kind == "stock":
-        return build_stock_report(client, target, days=days)
+        return build_stock_report(client, target, days=days, from_=from_, to=to)
     if kind == "crypto":
         symbols = csv_to_list(target.upper().replace("/", ","))
         if len(symbols) >= 2:
-            return build_crypto_compare_report(client, symbols[:10], days=days)
+            return build_crypto_compare_report(client, symbols[:10], days=days, from_=from_, to=to)
         if not symbols:
             raise CliUsageError("Provide a crypto symbol like BTC or a pair like BTC/ETH")
-        return build_crypto_report(client, symbols[0], days=days)
+        return build_crypto_report(client, symbols[0], days=days, from_=from_, to=to)
     if kind == "consensus":
-        return _build_consensus_report(build_stock_report(client, target, days=days))
+        return _build_consensus_report(build_stock_report(client, target, days=days, from_=from_, to=to))
     if kind == "watchlist":
-        return _build_watchlist_report_payload(client, name=target, asset=asset, days=days)
+        return _build_watchlist_report_payload(client, name=target, asset=asset, days=days, from_=from_, to=to)
     raise CliUsageError(f"Unsupported report kind: {kind}")
 
 
@@ -2964,7 +3005,7 @@ def _run_export(client: Any, args: Namespace) -> None:
         client,
         kind=args.kind,
         target=args.target,
-        days=args.days,
+        **_period_from_args(args),
         asset=getattr(args, "asset", "stocks"),
     )
     if args.format == "json":
@@ -2990,7 +3031,7 @@ def _run_watch(client: Any, args: Namespace) -> None:
             client,
             kind=args.kind,
             target=args.target,
-            days=args.days,
+            **_period_from_args(args),
             asset=getattr(args, "asset", "stocks"),
         )
         timestamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -3026,7 +3067,7 @@ def _run_crypto_report(client: Any, args: Namespace) -> None:
     symbols = csv_to_list(raw)
 
     if len(symbols) >= 2:
-        report = build_crypto_compare_report(client, symbols[:10], days=args.days)
+        report = build_crypto_compare_report(client, symbols[:10], **_period_from_args(args))
         if args.json:
             print_json(report)
             return
@@ -3036,7 +3077,7 @@ def _run_crypto_report(client: Any, args: Namespace) -> None:
     if not symbols:
         raise CliUsageError("Provide a crypto symbol like BTC or a pair like BTC/ETH")
 
-    report = build_crypto_report(client, symbols[0], days=args.days)
+    report = build_crypto_report(client, symbols[0], **_period_from_args(args))
     if args.json:
         print_json(report)
         return
@@ -3133,6 +3174,8 @@ def _run_ask(client: Any, args: Namespace) -> None:
         brief_args = Namespace(
             profile=(intent.primary or "starter"),
             days=args.days,
+            from_=getattr(args, "from_", None),
+            to=getattr(args, "to", None),
             limit=10,
             stocks=None,
             crypto=None,
@@ -3148,8 +3191,10 @@ def _run_ask(client: Any, args: Namespace) -> None:
             payload = {
                 "kind": "scan_bundle",
                 "days": args.days,
-                "stocks": build_stock_scan_report(client, days=args.days, limit=25),
-                "crypto": build_crypto_scan_report(client, days=args.days, limit=25),
+                "from": getattr(args, "from_", None),
+                "to": getattr(args, "to", None),
+                "stocks": build_stock_scan_report(client, **_period_from_args(args), limit=25),
+                "crypto": build_crypto_scan_report(client, **_period_from_args(args), limit=25),
             }
             if args.json:
                 print_json(payload)
@@ -3165,6 +3210,8 @@ def _run_ask(client: Any, args: Namespace) -> None:
             asset=asset,
             style=None,
             days=args.days,
+            from_=getattr(args, "from_", None),
+            to=getattr(args, "to", None),
             limit=25,
             top=10,
             min_buzz=None,
@@ -3182,6 +3229,8 @@ def _run_ask(client: Any, args: Namespace) -> None:
             name=(intent.primary or "core"),
             asset=(intent.secondary or "all").lower(),
             days=args.days,
+            from_=getattr(args, "from_", None),
+            to=getattr(args, "to", None),
             json=args.json,
         )
         _run_watchlist_report(client, watchlist_args)
@@ -3189,7 +3238,7 @@ def _run_ask(client: Any, args: Namespace) -> None:
 
     if intent.kind == "trending_report":
         asset = "crypto" if (intent.primary or "").lower() == "crypto" else "stocks"
-        report = build_trending_report(client, asset=asset, days=args.days, limit=5)
+        report = build_trending_report(client, asset=asset, **_period_from_args(args), limit=5)
         if args.json:
             print_json(report)
             return
@@ -3200,7 +3249,7 @@ def _run_ask(client: Any, args: Namespace) -> None:
         first, first_from, _ = _resolve_stock_ticker(client, intent.primary, intent.primary)
         second, second_from, _ = _resolve_stock_ticker(client, intent.secondary, intent.secondary)
         tickers = [first or intent.primary, second or intent.secondary]
-        report = build_stock_compare_report(client, tickers, days=args.days)
+        report = build_stock_compare_report(client, tickers, **_period_from_args(args))
         if args.json:
             report["resolution"] = {
                 "first": {"input": intent.primary, "query": first_from or intent.primary, "ticker": tickers[0]},
@@ -3218,7 +3267,7 @@ def _run_ask(client: Any, args: Namespace) -> None:
     if intent.kind == "stock_report" and intent.primary:
         resolved_ticker, resolved_from, resolved_source = _resolve_stock_ticker(client, text, intent.primary)
         ticker = resolved_ticker or intent.primary
-        report = build_stock_report(client, ticker, days=args.days)
+        report = build_stock_report(client, ticker, **_period_from_args(args))
         if args.json:
             if resolved_from and resolved_source:
                 report["resolution"] = {
@@ -3235,7 +3284,7 @@ def _run_ask(client: Any, args: Namespace) -> None:
         return
 
     if intent.kind == "crypto_report" and intent.primary:
-        report = build_crypto_report(client, intent.primary, days=args.days)
+        report = build_crypto_report(client, intent.primary, **_period_from_args(args))
         if args.json:
             print_json(report)
             return
@@ -3243,7 +3292,7 @@ def _run_ask(client: Any, args: Namespace) -> None:
         return
 
     if intent.kind == "crypto_compare" and intent.primary and intent.secondary:
-        report = build_crypto_compare_report(client, [intent.primary, intent.secondary], days=args.days)
+        report = build_crypto_compare_report(client, [intent.primary, intent.secondary], **_period_from_args(args))
         if args.json:
             print_json(report)
             return
