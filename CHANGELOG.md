@@ -5,6 +5,13 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.27.2] - 2026-05-21
+
+### Fixed
+- Improved endpoint error handling so API validation payloads are returned as CLI errors instead of successful endpoint results.
+- Added a clear usage error for combining `--days` with both `--from` and `--to`.
+- Removed `Recommended` wording from `--from` / `--to` help text.
+
 ## [1.27.1] - 2026-05-21
 
 ### Fixed
