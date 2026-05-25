@@ -10,7 +10,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Changed
 - Synced CLI endpoint coverage with Adanos Market Sentiment API `1.39.0`.
 - Removed `--from`, `--to`, and `--days` from search endpoint calls and the top-level `adanos search` command; search endpoints now accept only `--limit` and use API-managed recent summary windows.
-- Raised the Python SDK dependency floor to `adanos>=2.4.0`.
 
 ## [1.27.2] - 2026-05-21
 
