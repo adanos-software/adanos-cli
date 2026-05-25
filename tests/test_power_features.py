@@ -9,6 +9,7 @@ from pathlib import Path
 
 import adanos_cli.config as cli_config
 import adanos_cli.main as cli_main
+from adanos_cli.summaries import build_crypto_report
 
 
 def _isolate_config(tmp_path: Path, monkeypatch) -> None:
@@ -39,13 +40,11 @@ class _RedditNS:
     def explain(self, ticker: str):
         return {"ticker": ticker, "explanation": f"{ticker} explanation"}
 
-    def search(self, query: str, *, days: int = 7, from_: str | None = None, to: str | None = None, limit: int = 20):
+    def search(self, query: str, *, limit: int = 20):
         return {
             "query": query,
             "count": 1,
-            "period_days": days,
-            "from": from_,
-            "to": to,
+            "period_days": 7,
             "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}][:limit],
         }
 
@@ -72,13 +71,11 @@ class _NewsNS:
     def explain(self, ticker: str):
         return {"ticker": ticker, "explanation": f"{ticker} news backdrop"}
 
-    def search(self, query: str, *, days: int = 7, from_: str | None = None, to: str | None = None, limit: int = 20):
+    def search(self, query: str, *, limit: int = 20):
         return {
             "query": query,
             "count": 1,
-            "period_days": days,
-            "from": from_,
-            "to": to,
+            "period_days": 7,
             "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}][:limit],
         }
 
@@ -102,13 +99,11 @@ class _XNS:
     def explain(self, ticker: str):
         return {"ticker": ticker, "explanation": f"{ticker} X discussion"}
 
-    def search(self, query: str, *, days: int = 7, from_: str | None = None, to: str | None = None, limit: int = 20):
+    def search(self, query: str, *, limit: int = 20):
         return {
             "query": query,
             "count": 1,
-            "period_days": days,
-            "from": from_,
-            "to": to,
+            "period_days": 7,
             "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}][:limit],
         }
 
@@ -123,13 +118,11 @@ class _PolymarketNS:
     def stock(self, ticker: str, *, days: int = 7):
         return {"ticker": ticker, "found": True, "buzz_score": 79.0, "trend": "rising", "trade_count": 500, "sentiment_score": 0.2}
 
-    def search(self, query: str, *, days: int = 7, from_: str | None = None, to: str | None = None, limit: int = 20):
+    def search(self, query: str, *, limit: int = 20):
         return {
             "query": query,
             "count": 1,
-            "period_days": days,
-            "from": from_,
-            "to": to,
+            "period_days": 7,
             "results": [{"ticker": "MSFT", "name": "Microsoft Corporation"}][:limit],
         }
 
@@ -144,13 +137,11 @@ class _CryptoNS:
     def token(self, symbol: str, *, days: int = 7):
         return {"symbol": symbol, "found": True, "buzz_score": 78.0, "mentions": 1000, "sentiment_score": 0.05}
 
-    def search(self, query: str, *, days: int = 7, from_: str | None = None, to: str | None = None, limit: int = 20):
+    def search(self, query: str, *, limit: int = 20):
         return {
             "query": query,
             "count": 1,
-            "period_days": days,
-            "from": from_,
-            "to": to,
+            "period_days": 7,
             "results": [{"symbol": "BTC", "name": "Bitcoin"}][:limit],
         }
 
@@ -238,7 +229,7 @@ def test_scan_briefing_and_watchlist_report(tmp_path, monkeypatch, capsys) -> No
     assert payload["crypto_focus"]["symbols"] == ["BTC", "ETH"]
 
 
-def test_search_command_accepts_period_and_limit(tmp_path, monkeypatch, capsys) -> None:
+def test_search_command_accepts_limit(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
     monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
 
@@ -250,10 +241,6 @@ def test_search_command_accepts_period_and_limit(tmp_path, monkeypatch, capsys) 
             "--platform",
             "news-stocks",
             "Tesla",
-            "--from",
-            "2026-05-15",
-            "--to",
-            "2026-05-21",
             "--limit",
             "1",
             "--json",
@@ -265,9 +252,15 @@ def test_search_command_accepts_period_and_limit(tmp_path, monkeypatch, capsys) 
     assert payload["kind"] == "endpoint_result"
     assert payload["endpoint"] == "news-stocks.search"
     assert payload["data"]["query"] == "Tesla"
-    assert payload["data"]["from"] == "2026-05-15"
-    assert payload["data"]["to"] == "2026-05-21"
     assert payload["result_count"] == 1
+
+
+def test_crypto_report_search_uses_api_managed_window() -> None:
+    report = build_crypto_report(_FakeClient("adanos_key_test", "https://api.adanos.org"), "BTC", days=7)
+
+    assert report["reddit_crypto"]["ok"] is True
+    assert report["search"]["ok"] is True
+    assert report["search"]["data"]["query"] == "BTC"
 
 
 def test_ask_routes_scan_briefing_and_watchlist(tmp_path, monkeypatch, capsys) -> None:

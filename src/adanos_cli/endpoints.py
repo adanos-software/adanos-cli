@@ -25,7 +25,7 @@ class EndpointSpec:
 PERIOD_PARAMS = ("from", "to", "days")
 TRENDING_PARAMS = (*PERIOD_PARAMS, "limit", "offset")
 TRENDING_TYPE_PARAMS = (*TRENDING_PARAMS, "type")
-SEARCH_PARAMS = (*PERIOD_PARAMS, "limit")
+SEARCH_PARAMS = ("limit",)
 RAW_MENTION_PARAMS = (*PERIOD_PARAMS, "limit", "offset")
 
 
@@ -134,7 +134,6 @@ def _reddit_stocks_explain(client: Any, args: Namespace) -> Any:
 def _reddit_stocks_search(client: Any, args: Namespace) -> Any:
     return client.reddit.search(
         _require_str(args, "q", "query"),
-        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 20),
     )
 
@@ -208,7 +207,6 @@ def _news_stocks_explain(client: Any, args: Namespace) -> Any:
 def _news_stocks_search(client: Any, args: Namespace) -> Any:
     return client.news.search(
         _require_str(args, "q", "query"),
-        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 20),
     )
 
@@ -259,7 +257,6 @@ def _reddit_crypto_mentions(client: Any, args: Namespace) -> Any:
 def _reddit_crypto_search(client: Any, args: Namespace) -> Any:
     return client.crypto.search(
         _require_str(args, "q", "query"),
-        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 20),
     )
 
@@ -327,7 +324,6 @@ def _x_stocks_explain(client: Any, args: Namespace) -> Any:
 def _x_stocks_search(client: Any, args: Namespace) -> Any:
     return client.x.search(
         _require_str(args, "q", "query"),
-        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 20),
     )
 
@@ -391,7 +387,6 @@ def _polymarket_stocks_mentions(client: Any, args: Namespace) -> Any:
 def _polymarket_stocks_search(client: Any, args: Namespace) -> Any:
     return client.polymarket.search(
         _require_str(args, "q", "query"),
-        **_period_kwargs(args, default_days=7),
         limit=_with_default(args.limit, 20),
     )
 

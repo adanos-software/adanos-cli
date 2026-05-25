@@ -46,7 +46,7 @@ NEWS_ENDPOINT_IDS = {
     "news-stocks.search": {
         "path": "/news/stocks/v1/search",
         "required": ("q",),
-        "optional": ("from", "to", "days", "limit"),
+        "optional": ("limit",),
     },
     "news-stocks.compare": {
         "path": "/news/stocks/v1/compare",
@@ -124,7 +124,7 @@ def test_raw_mention_endpoint_specs_support_offset() -> None:
 
 def test_invoke_endpoint_rejects_unsupported_source() -> None:
     class DummyNews:
-        def search(self, query: str, *, days: int = 7, limit: int = 20) -> dict[str, str | int]:
+        def search(self, query: str, *, limit: int = 20) -> dict[str, str | int]:
             return {"query": query}
 
     class DummyClient:
@@ -134,13 +134,13 @@ def test_invoke_endpoint_rejects_unsupported_source() -> None:
         invoke_endpoint(DummyClient(), "news-stocks.search", Namespace(q="Tesla", source="wsj"))
 
 
-def test_invoke_endpoint_search_passes_days_and_limit() -> None:
+def test_invoke_endpoint_search_passes_limit_only() -> None:
     class DummyNews:
         def __init__(self) -> None:
-            self.calls: list[tuple[str, int, int]] = []
+            self.calls: list[tuple[str, int]] = []
 
-        def search(self, query: str, *, days: int = 7, limit: int = 20) -> dict[str, int | str]:
-            self.calls.append((query, days, limit))
+        def search(self, query: str, *, limit: int = 20) -> dict[str, int | str]:
+            self.calls.append((query, limit))
             return {"query": query, "count": 1}
 
     class DummyClient:
@@ -148,39 +148,19 @@ def test_invoke_endpoint_search_passes_days_and_limit() -> None:
             self.news = DummyNews()
 
     client = DummyClient()
-    invoke_endpoint(client, "news-stocks.search", Namespace(q="Tesla", days=14, limit=5, source=None))
-    assert client.news.calls == [("Tesla", 14, 5)]
+    invoke_endpoint(client, "news-stocks.search", Namespace(q="Tesla", days=14, from_="2026-05-01", to="2026-05-07", limit=5, source=None))
+    assert client.news.calls == [("Tesla", 5)]
 
 
-def test_invoke_endpoint_search_passes_from_to_without_days() -> None:
-    class DummyNews:
-        def __init__(self) -> None:
-            self.calls: list[tuple[str, str | None, str | None, int]] = []
-
-        def search(
-            self,
-            query: str,
-            *,
-            from_: str | None = None,
-            to: str | None = None,
-            days: int | None = None,
-            limit: int = 20,
-        ) -> dict[str, int | str]:
-            assert days is None
-            self.calls.append((query, from_, to, limit))
-            return {"query": query, "count": 1}
-
-    class DummyClient:
-        def __init__(self) -> None:
-            self.news = DummyNews()
-
-    client = DummyClient()
-    invoke_endpoint(
-        client,
+def test_search_endpoint_specs_accept_limit_only() -> None:
+    for endpoint_id in (
         "news-stocks.search",
-        Namespace(q="Tesla", days=None, from_="2026-05-01", to="2026-05-07", limit=5, source=None),
-    )
-    assert client.news.calls == [("Tesla", "2026-05-01", "2026-05-07", 5)]
+        "reddit-stocks.search",
+        "reddit-crypto.search",
+        "x-stocks.search",
+        "polymarket-stocks.search",
+    ):
+        assert ENDPOINTS[endpoint_id].optional_params == ("limit",)
 
 
 def test_invoke_endpoint_rejects_days_with_full_date_window() -> None:

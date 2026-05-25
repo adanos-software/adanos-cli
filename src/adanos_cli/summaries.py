@@ -154,7 +154,7 @@ def build_crypto_report(client: Any, symbol: str, *, days: int | None, from_: st
         "symbol": token,
         **_period_metadata(days, from_, to),
         "reddit_crypto": _call_safe(lambda: client.crypto.token(token, **period)),
-        "search": _call_safe(lambda: client.crypto.search(token, **period)),
+        "search": _call_safe(lambda: client.crypto.search(token)),
         "stats": _call_safe(lambda: client.crypto.stats()),
     }
 
@@ -458,11 +458,11 @@ def build_search_fallback_report(client: Any, query: str) -> dict[str, Any]:
     return {
         "kind": "search_fallback",
         "query": query,
-        "news_stocks": _call_safe(lambda: client.news.search(query, days=7, limit=10)),
-        "reddit_stocks": _call_safe(lambda: client.reddit.search(query, days=7, limit=10)),
-        "x_stocks": _call_safe(lambda: client.x.search(query, days=7, limit=10)),
-        "polymarket_stocks": _call_safe(lambda: client.polymarket.search(query, days=7, limit=10)),
-        "reddit_crypto": _call_safe(lambda: client.crypto.search(query, days=7, limit=10)),
+        "news_stocks": _call_safe(lambda: client.news.search(query, limit=10)),
+        "reddit_stocks": _call_safe(lambda: client.reddit.search(query, limit=10)),
+        "x_stocks": _call_safe(lambda: client.x.search(query, limit=10)),
+        "polymarket_stocks": _call_safe(lambda: client.polymarket.search(query, limit=10)),
+        "reddit_crypto": _call_safe(lambda: client.crypto.search(query, limit=10)),
     }
 
 
