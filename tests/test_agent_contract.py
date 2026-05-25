@@ -224,7 +224,7 @@ class _SearchNamespace:
     def __init__(self, rows: list[dict]):
         self._rows = rows
 
-    def search(self, query: str, *, days: int = 7, limit: int = 20):
+    def search(self, query: str, *, limit: int = 20):
         query_upper = query.upper()
         matched = []
         for row in self._rows:
@@ -233,7 +233,7 @@ class _SearchNamespace:
             ticker = str(row.get("ticker") or "").upper()
             if query_upper in name or query_upper in ticker or any(query_upper in alias for alias in aliases):
                 matched.append(row)
-        return {"query": query, "count": len(matched), "period_days": days, "results": matched[:limit]}
+        return {"query": query, "count": len(matched), "period_days": 7, "results": matched[:limit]}
 
 
 class _AliasClient:

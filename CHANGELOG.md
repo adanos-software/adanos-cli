@@ -5,6 +5,13 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [2.0.0] - 2026-05-25
+
+### Breaking
+- Synced CLI endpoint coverage with Adanos Market Sentiment API `1.39.0`.
+- Removed `--from`, `--to`, and `--days` from search endpoint calls and the top-level `adanos search` command; search endpoints now accept only `--limit` and use API-managed recent summary windows.
+- Raised the Python SDK dependency floor to `adanos>=3.0.0`.
+
 ## [1.27.2] - 2026-05-21
 
 ### Fixed

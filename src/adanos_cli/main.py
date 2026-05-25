@@ -2206,7 +2206,6 @@ def _build_parser() -> argparse.ArgumentParser:
     p_search = subs.add_parser("search", help="Search assets by platform")
     p_search.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], required=True)
     p_search.add_argument("query")
-    _add_period_args(p_search, default_days=7)
     p_search.add_argument("--limit", type=int, default=20)
     p_search.add_argument("--json", action="store_true")
     p_search.set_defaults(_handler="search")
