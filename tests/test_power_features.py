@@ -9,6 +9,7 @@ from pathlib import Path
 
 import adanos_cli.config as cli_config
 import adanos_cli.main as cli_main
+from adanos_cli.summaries import build_crypto_report
 
 
 def _isolate_config(tmp_path: Path, monkeypatch) -> None:
@@ -252,6 +253,14 @@ def test_search_command_accepts_limit(tmp_path, monkeypatch, capsys) -> None:
     assert payload["endpoint"] == "news-stocks.search"
     assert payload["data"]["query"] == "Tesla"
     assert payload["result_count"] == 1
+
+
+def test_crypto_report_search_uses_api_managed_window() -> None:
+    report = build_crypto_report(_FakeClient("adanos_key_test", "https://api.adanos.org"), "BTC", days=7)
+
+    assert report["reddit_crypto"]["ok"] is True
+    assert report["search"]["ok"] is True
+    assert report["search"]["data"]["query"] == "BTC"
 
 
 def test_ask_routes_scan_briefing_and_watchlist(tmp_path, monkeypatch, capsys) -> None:

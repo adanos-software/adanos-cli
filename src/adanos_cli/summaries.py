@@ -154,7 +154,7 @@ def build_crypto_report(client: Any, symbol: str, *, days: int | None, from_: st
         "symbol": token,
         **_period_metadata(days, from_, to),
         "reddit_crypto": _call_safe(lambda: client.crypto.token(token, **period)),
-        "search": _call_safe(lambda: client.crypto.search(token, **period)),
+        "search": _call_safe(lambda: client.crypto.search(token)),
         "stats": _call_safe(lambda: client.crypto.stats()),
     }
 
