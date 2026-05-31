@@ -5,6 +5,12 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.29.0] - 2026-05-31
+
+### Changed
+- Synced CLI endpoint coverage with Adanos Market Sentiment API `1.40.0`; no endpoint or flag additions were required.
+- Raised the Python SDK dependency floor to `adanos>=2.5.0` so CLI installs use the API `1.40.0` models.
+
 ## [1.28.0] - 2026-05-25
 
 ### Changed
