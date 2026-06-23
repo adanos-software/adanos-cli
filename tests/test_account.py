@@ -96,6 +96,31 @@ def test_account_status_professional_plan_json(capsys) -> None:
 
 
 @respx.mock
+def test_account_status_falls_back_to_non_monthly_reset_header(capsys) -> None:
+    respx.get("https://api.adanos.org/reddit/stocks/v1/stats").mock(
+        return_value=httpx.Response(
+            200,
+            json={"total_mentions": 123},
+            headers={
+                "X-Account-Type": "free",
+                "X-RateLimit-Limit": "250",
+                "X-RateLimit-Remaining": "200",
+                "X-RateLimit-Used-Monthly": "50",
+                "X-RateLimit-Reset": "2026-07-23T10:00:00Z",
+            },
+        )
+    )
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "account", "--json"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    payload = json.loads(out)
+    assert payload["monthly_limit"] == 250
+    assert payload["monthly_remaining"] == 200
+    assert payload["monthly_reset_at"] == "2026-07-23T10:00:00Z"
+
+
+@respx.mock
 def test_account_status_out_of_credits_text(capsys) -> None:
     respx.get("https://api.adanos.org/reddit/stocks/v1/stats").mock(
         return_value=httpx.Response(

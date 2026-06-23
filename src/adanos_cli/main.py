@@ -1016,7 +1016,7 @@ def _build_account_status_payload(
     limit_raw = _header_get(headers, "X-RateLimit-Limit-Monthly") or _header_get(headers, "X-RateLimit-Limit")
     remaining_raw = _header_get(headers, "X-RateLimit-Remaining-Monthly") or _header_get(headers, "X-RateLimit-Remaining")
     used_raw = _header_get(headers, "X-RateLimit-Used-Monthly")
-    reset_at = _header_get(headers, "X-RateLimit-Reset-Monthly")
+    reset_at = _header_get(headers, "X-RateLimit-Reset-Monthly") or _header_get(headers, "X-RateLimit-Reset")
 
     limit = None if str(limit_raw or "").strip().lower() == "unlimited" else _to_optional_int(limit_raw)
     remaining = None if str(remaining_raw or "").strip().lower() == "unlimited" else _to_optional_int(remaining_raw)
