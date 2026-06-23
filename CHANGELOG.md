@@ -5,6 +5,16 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [Unreleased]
+
+### Added
+- Added `sentiment.analyze` endpoint coverage for `POST /sentiment/v1/analyze`.
+- Added account status handling for `X-RateLimit-Reset-Monthly`.
+
+### Changed
+- Synced CLI endpoint/account behavior with Adanos Market Sentiment API `1.44.0`.
+- Updated paid-account quota handling for finite monthly limits introduced by API `1.41.2`.
+
 ## [1.29.0] - 2026-05-31
 
 ### Changed

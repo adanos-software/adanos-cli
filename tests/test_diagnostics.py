@@ -76,9 +76,10 @@ def test_whoami_json_reports_runtime_sources(tmp_path, monkeypatch, capsys) -> N
             json={"total_mentions": 42},
             headers={
                 "X-Account-Type": "hobby",
-                "X-RateLimit-Limit-Monthly": "unlimited",
-                "X-RateLimit-Remaining-Monthly": "unlimited",
+                "X-RateLimit-Limit-Monthly": "250000",
+                "X-RateLimit-Remaining-Monthly": "249983",
                 "X-RateLimit-Used-Monthly": "17",
+                "X-RateLimit-Reset-Monthly": "2026-07-23T10:00:00Z",
             },
         )
     )
@@ -123,9 +124,10 @@ def test_doctor_text_is_compact_when_healthy(tmp_path, monkeypatch, capsys) -> N
             json={"total_mentions": 42},
             headers={
                 "X-Account-Type": "professional",
-                "X-RateLimit-Limit-Monthly": "unlimited",
-                "X-RateLimit-Remaining-Monthly": "unlimited",
+                "X-RateLimit-Limit-Monthly": "2500000",
+                "X-RateLimit-Remaining-Monthly": "2499983",
                 "X-RateLimit-Used-Monthly": "17",
+                "X-RateLimit-Reset-Monthly": "2026-07-23T10:00:00Z",
             },
         )
     )
@@ -152,9 +154,10 @@ def test_doctor_verbose_shows_pass_checks(tmp_path, monkeypatch, capsys) -> None
             json={"total_mentions": 42},
             headers={
                 "X-Account-Type": "professional",
-                "X-RateLimit-Limit-Monthly": "unlimited",
-                "X-RateLimit-Remaining-Monthly": "unlimited",
+                "X-RateLimit-Limit-Monthly": "2500000",
+                "X-RateLimit-Remaining-Monthly": "2499983",
                 "X-RateLimit-Used-Monthly": "17",
+                "X-RateLimit-Reset-Monthly": "2026-07-23T10:00:00Z",
             },
         )
     )
@@ -184,9 +187,10 @@ def test_doctor_text_shows_warns_and_hides_pass_checks(tmp_path, monkeypatch, ca
             json={"total_mentions": 42},
             headers={
                 "X-Account-Type": "professional",
-                "X-RateLimit-Limit-Monthly": "unlimited",
-                "X-RateLimit-Remaining-Monthly": "unlimited",
+                "X-RateLimit-Limit-Monthly": "2500000",
+                "X-RateLimit-Remaining-Monthly": "2499983",
                 "X-RateLimit-Used-Monthly": "17",
+                "X-RateLimit-Reset-Monthly": "2026-07-23T10:00:00Z",
             },
         )
     )

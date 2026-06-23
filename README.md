@@ -176,6 +176,7 @@ adanos endpoint call reddit-stocks.trending --limit 10
 adanos endpoint call reddit-stocks.market-sentiment --from 2026-05-01 --to 2026-05-07
 adanos endpoint call reddit-stocks.stock.mentions --ticker TSLA --from 2026-05-01 --to 2026-05-07 --limit 10 --offset 10 --include-inherited
 adanos endpoint call x-stocks.stock.explain --ticker TSLA
+adanos endpoint call sentiment.analyze --text "TSLA looks like a short squeeze setup"
 ```
 
 Polymarket endpoint output includes both `market_count` for selected-window breadth and `current_market_count` for live-only active-market breadth.
