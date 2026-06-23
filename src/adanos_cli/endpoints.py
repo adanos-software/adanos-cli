@@ -63,6 +63,18 @@ def _raw_get_json(client: Any, path: str) -> Any:
     return response.json()
 
 
+def _raw_post_json(client: Any, path: str, payload: dict[str, Any]) -> Any:
+    sdk_client = getattr(client, "_client", None)
+    get_httpx_client = getattr(sdk_client, "get_httpx_client", None)
+    if not callable(get_httpx_client):
+        raise CliUsageError("Endpoint requires an Adanos SDK client with raw HTTP support")
+    response = get_httpx_client().request("post", path, json=payload)
+    response.raise_for_status()
+    if not response.content:
+        return None
+    return response.json()
+
+
 def _require_str(args: Namespace, *names: str) -> str:
     for name in names:
         value = getattr(args, name, None)
@@ -411,8 +423,25 @@ def _root_health(client: Any, args: Namespace) -> Any:
     return _raw_get_json(client, "/health")
 
 
+def _sentiment_analyze(client: Any, args: Namespace) -> Any:
+    text = _require_str(args, "text")
+    sentiment = getattr(client, "sentiment", None)
+    analyze = getattr(sentiment, "analyze", None)
+    if callable(analyze):
+        return analyze(text)
+    return _raw_post_json(client, "/sentiment/v1/analyze", {"text": text})
+
+
 ENDPOINTS: dict[str, EndpointSpec] = {
     # Root
+    "sentiment.analyze": EndpointSpec(
+        "sentiment.analyze",
+        "/sentiment/v1/analyze",
+        "Analyze one finance or trading text",
+        ("text",),
+        tuple(),
+        _sentiment_analyze,
+    ),
     "root.health": EndpointSpec(
         "root.health", "/health", "Root API health", tuple(), tuple(), _root_health
     ),

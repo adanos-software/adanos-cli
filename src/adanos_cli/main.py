@@ -1016,6 +1016,7 @@ def _build_account_status_payload(
     limit_raw = _header_get(headers, "X-RateLimit-Limit-Monthly") or _header_get(headers, "X-RateLimit-Limit")
     remaining_raw = _header_get(headers, "X-RateLimit-Remaining-Monthly") or _header_get(headers, "X-RateLimit-Remaining")
     used_raw = _header_get(headers, "X-RateLimit-Used-Monthly")
+    reset_at = _header_get(headers, "X-RateLimit-Reset-Monthly") or _header_get(headers, "X-RateLimit-Reset")
 
     limit = None if str(limit_raw or "").strip().lower() == "unlimited" else _to_optional_int(limit_raw)
     remaining = None if str(remaining_raw or "").strip().lower() == "unlimited" else _to_optional_int(remaining_raw)
@@ -1068,6 +1069,7 @@ def _build_account_status_payload(
         "monthly_limit": limit,
         "monthly_used": used,
         "monthly_remaining": remaining,
+        "monthly_reset_at": reset_at,
         "upgrade_options": upgrade_options,
         "upgrade_contact": SUPPORT_CONTACT_EMAIL if upgrade_options else None,
         "message": message,
@@ -1097,6 +1099,8 @@ def _print_account_status(payload: dict[str, Any]) -> None:
         used_label = monthly_used if monthly_used is not None else "unknown"
         remaining_label = monthly_remaining if monthly_remaining is not None else "unknown"
         print(f"- Monthly credits: {used_label}/{monthly_limit} used ({remaining_label} remaining)")
+    if payload.get("monthly_reset_at"):
+        print(f"- Monthly reset: {payload.get('monthly_reset_at')}")
 
     upgrade_options = payload.get("upgrade_options") or []
     if upgrade_options:
@@ -1146,6 +1150,7 @@ def _build_whoami_payload(
                 "monthly_limit": account_payload.get("monthly_limit"),
                 "monthly_used": account_payload.get("monthly_used"),
                 "monthly_remaining": account_payload.get("monthly_remaining"),
+                "monthly_reset_at": account_payload.get("monthly_reset_at"),
             }
         )
 
@@ -1174,6 +1179,8 @@ def _print_whoami(payload: dict[str, Any]) -> None:
             f"- Monthly credits: {payload.get('monthly_used')}/{payload.get('monthly_limit')} "
             f"used ({payload.get('monthly_remaining')} remaining)"
         )
+    if payload.get("monthly_reset_at"):
+        print(f"- Monthly reset: {payload.get('monthly_reset_at')}")
     account_error = payload.get("account_error")
     if isinstance(account_error, dict):
         print(f"- Account check: {account_error.get('message', 'unavailable')}")
@@ -2135,6 +2142,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ep_call.add_argument("--symbol")
     p_ep_call.add_argument("--q")
     p_ep_call.add_argument("--query")
+    p_ep_call.add_argument("--text")
     p_ep_call.add_argument("--tickers", help="Comma-separated tickers")
     p_ep_call.add_argument("--symbols", help="Comma-separated symbols")
     p_ep_call.add_argument("--assets", help="Generic comma-separated assets (for compare)")

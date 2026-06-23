@@ -24,6 +24,7 @@ def test_account_status_free_plan_json(capsys) -> None:
                 "X-RateLimit-Limit-Monthly": "250",
                 "X-RateLimit-Remaining-Monthly": "200",
                 "X-RateLimit-Used-Monthly": "50",
+                "X-RateLimit-Reset-Monthly": "2026-07-23T10:00:00Z",
             },
         )
     )
@@ -38,6 +39,7 @@ def test_account_status_free_plan_json(capsys) -> None:
     assert payload["monthly_limit"] == 250
     assert payload["monthly_used"] == 50
     assert payload["monthly_remaining"] == 200
+    assert payload["monthly_reset_at"] == "2026-07-23T10:00:00Z"
     assert payload["status"] == "active"
     assert payload["upgrade_options"] == ["hobby", "professional"]
 
@@ -71,9 +73,10 @@ def test_account_status_professional_plan_json(capsys) -> None:
             json={"total_mentions": 987},
             headers={
                 "X-Account-Type": "professional",
-                "X-RateLimit-Limit-Monthly": "unlimited",
-                "X-RateLimit-Remaining-Monthly": "unlimited",
+                "X-RateLimit-Limit-Monthly": "2500000",
+                "X-RateLimit-Remaining-Monthly": "2499880",
                 "X-RateLimit-Used-Monthly": "120",
+                "X-RateLimit-Reset-Monthly": "2026-07-23T10:00:00Z",
             },
         )
     )
@@ -85,9 +88,36 @@ def test_account_status_professional_plan_json(capsys) -> None:
     assert payload["command"] == "account"
     assert payload["account_type"] == "professional"
     assert payload["paid_active"] is True
-    assert payload["monthly_limit"] is None
+    assert payload["monthly_limit"] == 2500000
+    assert payload["monthly_remaining"] == 2499880
+    assert payload["monthly_reset_at"] == "2026-07-23T10:00:00Z"
     assert payload["status"] == "paid_active"
     assert payload["upgrade_options"] == []
+
+
+@respx.mock
+def test_account_status_falls_back_to_non_monthly_reset_header(capsys) -> None:
+    respx.get("https://api.adanos.org/reddit/stocks/v1/stats").mock(
+        return_value=httpx.Response(
+            200,
+            json={"total_mentions": 123},
+            headers={
+                "X-Account-Type": "free",
+                "X-RateLimit-Limit": "250",
+                "X-RateLimit-Remaining": "200",
+                "X-RateLimit-Used-Monthly": "50",
+                "X-RateLimit-Reset": "2026-07-23T10:00:00Z",
+            },
+        )
+    )
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "account", "--json"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    payload = json.loads(out)
+    assert payload["monthly_limit"] == 250
+    assert payload["monthly_remaining"] == 200
+    assert payload["monthly_reset_at"] == "2026-07-23T10:00:00Z"
 
 
 @respx.mock

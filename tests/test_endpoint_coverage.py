@@ -85,13 +85,20 @@ def test_endpoint_paths_cover_all_supported_platform_families() -> None:
 
 
 def test_endpoint_count_is_complete() -> None:
-    assert len(ENDPOINTS) == 52
+    assert len(ENDPOINTS) == 53
 
 
 def test_root_health_endpoint_spec_is_complete() -> None:
     spec = ENDPOINTS["root.health"]
     assert spec.path == "/health"
     assert spec.required_params == tuple()
+    assert spec.optional_params == tuple()
+
+
+def test_sentiment_analyze_endpoint_spec_is_complete() -> None:
+    spec = ENDPOINTS["sentiment.analyze"]
+    assert spec.path == "/sentiment/v1/analyze"
+    assert spec.required_params == ("text",)
     assert spec.optional_params == tuple()
 
 
@@ -214,6 +221,25 @@ def test_invoke_endpoint_x_explain_passes_ticker() -> None:
     result = invoke_endpoint(client, "x-stocks.stock.explain", Namespace(ticker="NVDA", source=None))
     assert result == {"ticker": "NVDA", "explanation": "X context"}
     assert client.x.calls == ["NVDA"]
+
+
+def test_invoke_endpoint_sentiment_analyze_passes_text() -> None:
+    class DummySentiment:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def analyze(self, text: str) -> dict[str, str]:
+            self.calls.append(text)
+            return {"sentiment_label": "positive"}
+
+    class DummyClient:
+        def __init__(self) -> None:
+            self.sentiment = DummySentiment()
+
+    client = DummyClient()
+    result = invoke_endpoint(client, "sentiment.analyze", Namespace(text="TSLA squeeze setup", source=None))
+    assert result == {"sentiment_label": "positive"}
+    assert client.sentiment.calls == ["TSLA squeeze setup"]
 
 
 def test_invoke_endpoint_raw_mentions_passes_params() -> None:
