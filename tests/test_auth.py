@@ -163,6 +163,18 @@ def test_login_no_input_requires_explicit_secret_source(tmp_path, monkeypatch, c
     assert "--api-key-stdin" in payload["error"]["message"]
 
 
+def test_login_no_input_stdin_rejects_interactive_tty(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr("adanos_cli.commands.secrets.stdin_is_tty", lambda: True)
+
+    rc = cli_main.main(["--no-input", "login", "--api-key-stdin", "--json"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    payload = json.loads(captured.err)
+    assert payload["error"]["code"] == "auth_error"
+    assert "interactive TTY" in payload["error"]["message"]
+
+
 def test_auth_subcommands_accept_json_shortcut(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
 

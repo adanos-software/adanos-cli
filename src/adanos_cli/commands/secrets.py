@@ -7,7 +7,7 @@ from argparse import Namespace
 from getpass import getpass
 from pathlib import Path
 
-from ..tty import is_interactive
+from ..tty import is_interactive, stdin_is_tty
 from ..utils import CliUsageError
 
 
@@ -35,6 +35,8 @@ def read_api_key_arg(args: Namespace) -> str:
         return value
 
     if bool(getattr(args, "api_key_stdin", False)):
+        if bool(getattr(args, "no_input", False)) and stdin_is_tty():
+            raise CliUsageError("Cannot read --api-key-stdin with --no-input from an interactive TTY.")
         value = sys.stdin.readline().strip()
         if not value:
             raise CliUsageError("No API key received on stdin.")
