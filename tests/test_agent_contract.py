@@ -48,7 +48,9 @@ def test_capabilities_json(tmp_path, monkeypatch, capsys) -> None:
     assert payload["name"] == "adanos-cli"
     assert payload["endpoint_count"] == len(ENDPOINTS)
     assert payload["error_channel"] == "stderr"
-    assert payload["output_modes"] == ["text", "json"]
+    assert payload["output_modes"] == ["auto", "text", "json"]
+    assert payload["auth"]["secret_input"] == ["prompt", "--api-key-stdin", "--api-key-file", "--api-key", "ADANOS_API_KEY"]
+    assert payload["json_contract"]["required"] == ["kind", "command"]
     assert "shell" in payload["commands"]
 
 
@@ -85,6 +87,15 @@ def test_global_output_json_after_subcommand_is_accepted(capsys) -> None:
     assert payload["name"] == "adanos-cli"
 
 
+def test_unknown_command_shows_hint(capsys) -> None:
+    rc = cli_main.main(["wat"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "error:" in captured.err
+    assert "hint:" in captured.err
+    assert "Did you mean `watch`?" in captured.err
+
+
 def test_endpoint_list_output_json_after_subcommand_is_accepted(capsys) -> None:
     rc = cli_main.main(["endpoint", "list", "--output", "json"])
     out = capsys.readouterr().out
@@ -92,6 +103,15 @@ def test_endpoint_list_output_json_after_subcommand_is_accepted(capsys) -> None:
     payload = json.loads(out)
     assert isinstance(payload, list)
     assert any(row["id"] == "reddit-stocks.trending" for row in payload)
+
+
+def test_endpoint_list_filters_and_groups_human_output(capsys) -> None:
+    rc = cli_main.main(["endpoint", "list", "--platform", "polymarket-stocks", "--search", "stock"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "polymarket-stocks" in out
+    assert "polymarket-stocks.stock" in out
+    assert "reddit-stocks" not in out
 
 
 def test_endpoint_result_wrapper_includes_stable_metadata(monkeypatch, capsys) -> None:
@@ -117,6 +137,28 @@ def test_endpoint_result_wrapper_includes_stable_metadata(monkeypatch, capsys) -
     assert payload["endpoint"] == "news-stocks.trending"
     assert payload["result_count"] == 2
     assert len(payload["data"]) == 2
+
+
+def test_endpoint_human_result_uses_table_not_raw_json(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        cli_main,
+        "invoke_endpoint",
+        lambda client, endpoint_id, args: [{"ticker": "MSFT", "buzz_score": 80.0, "mentions": 12, "sentiment_score": 0.2}],
+    )
+
+    cli_main._call_and_emit_endpoint(
+        object(),
+        "news-stocks.trending",
+        Namespace(days=1, limit=1),
+        json_mode=False,
+        command="trending",
+    )
+
+    out = capsys.readouterr().out
+    assert "rank  asset" in out
+    assert "MSFT" in out
+    assert '"ticker"' not in out
+    assert "Use --json or --output json" in out
 
 
 def test_endpoint_api_error_payload_raises_runtime_error(monkeypatch) -> None:
@@ -205,6 +247,19 @@ def test_health_all_json_includes_stable_metadata(monkeypatch, capsys) -> None:
     assert "root.health" in payload["checks"]
     assert "news-stocks.health" in payload["checks"]
     assert "news-stocks.health" in payload
+
+
+def test_health_all_text_preserves_false_status(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        cli_main,
+        "invoke_endpoint",
+        lambda client, endpoint_id, args: {"ok": False} if endpoint_id == "reddit-stocks.health" else {"ok": True},
+    )
+
+    cli_main._run_health(object(), Namespace(platform="all", json=False))
+
+    out = capsys.readouterr().out
+    assert "- reddit-stocks.health: False" in out
 
 
 def test_health_root_routes_to_root_endpoint(monkeypatch, capsys) -> None:

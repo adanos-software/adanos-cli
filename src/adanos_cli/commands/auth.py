@@ -2,20 +2,12 @@
 
 from __future__ import annotations
 
-from getpass import getpass
 from argparse import Namespace
 
 from .. import config as cli_config
 from ..config import DEFAULT_BASE_URL, load_config_file, masked_key, save_config_file
+from .secrets import read_api_key_arg
 from ..utils import CliUsageError, print_json, with_json_metadata
-from ..tty import is_interactive
-
-
-def _prompt_api_key() -> str:
-    value = getpass("API key: ").strip()
-    if not value:
-        raise CliUsageError("API key must not be empty.")
-    return value
 
 
 def handle_auth_command(args: Namespace) -> int:
@@ -25,11 +17,7 @@ def handle_auth_command(args: Namespace) -> int:
             validation_error = cli_config.validate_profile_name(profile_name)
             if validation_error:
                 raise CliUsageError(validation_error)
-        api_key = str(getattr(args, "api_key", "") or "").strip()
-        if not api_key:
-            if not is_interactive():
-                raise CliUsageError("Non-interactive usage requires --api-key.")
-            api_key = _prompt_api_key()
+        api_key = read_api_key_arg(args)
         save_config_file(
             api_key=api_key,
             base_url=args.base_url,

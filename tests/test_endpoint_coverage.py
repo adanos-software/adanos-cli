@@ -359,6 +359,37 @@ def test_nlp_detects_crypto_compare_without_keyword_when_symbols_are_common() ->
     assert intent.secondary == "ETH"
 
 
+def test_nlp_routes_common_crypto_symbols_without_crypto_keyword() -> None:
+    for prompt, symbol in (
+        ("How does BTC look?", "BTC"),
+        ("How does ETH look?", "ETH"),
+        ("How does SOL look?", "SOL"),
+    ):
+        intent = parse_ask_intent(prompt)
+        assert intent.kind == "crypto_report"
+        assert intent.primary == symbol
+
+
+def test_nlp_routes_compare_and_for_common_crypto_symbols() -> None:
+    intent = parse_ask_intent("compare BTC and ETH")
+    assert intent.kind == "crypto_compare"
+    assert intent.primary == "BTC"
+    assert intent.secondary == "ETH"
+
+
+def test_nlp_routes_crypto_name_compare_to_symbols() -> None:
+    intent = parse_ask_intent("compare Bitcoin and Ethereum")
+    assert intent.kind == "crypto_compare"
+    assert intent.primary == "BTC"
+    assert intent.secondary == "ETH"
+
+
+def test_nlp_keeps_stock_prompt_for_stock_symbol() -> None:
+    intent = parse_ask_intent("How does TSLA look?")
+    assert intent.kind == "stock_report"
+    assert intent.primary == "TSLA"
+
+
 def test_nlp_detects_scan_intent() -> None:
     intent = parse_ask_intent("scan crypto for setups")
     assert intent.kind == "scan_report"

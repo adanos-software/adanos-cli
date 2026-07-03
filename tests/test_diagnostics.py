@@ -112,6 +112,24 @@ def test_doctor_json_fails_without_key(tmp_path, monkeypatch, capsys) -> None:
     assert checks["API Validation"]["detail"] == "Skipped because credentials are not configured."
 
 
+def test_doctor_reports_corrupt_config_json(tmp_path, monkeypatch, capsys) -> None:
+    _, cfg_path, credentials_path = _isolate_config(tmp_path, monkeypatch)
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    cfg_path.write_text("{not-json", encoding="utf-8")
+    credentials_path.write_text("[]", encoding="utf-8")
+    monkeypatch.delenv("ADANOS_API_KEY", raising=False)
+    monkeypatch.delenv("ADANOS_BASE_URL", raising=False)
+
+    rc = cli_main.main(["doctor", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    checks = {check["name"]: check for check in payload["checks"]}
+
+    assert rc == 1
+    assert checks["Config JSON"]["status"] == "fail"
+    assert checks["Credentials JSON"]["status"] == "fail"
+    assert "Fix or remove this file" in checks["Config JSON"]["next_step"]
+
+
 @respx.mock
 def test_doctor_text_is_compact_when_healthy(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
@@ -218,3 +236,24 @@ def test_main_auto_json_for_real_cli_invocation(monkeypatch, capsys) -> None:
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["name"] == "adanos-cli"
+
+
+def test_main_explicit_output_text_prevents_pipe_auto_json(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(sys, "argv", ["adanos", "--output", "text", "capabilities"])
+    rc = cli_main.main()
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out.startswith("CLI capabilities")
+    assert not out.lstrip().startswith("{")
+
+
+def test_network_errors_are_user_friendly() -> None:
+    request = httpx.Request("GET", "http://127.0.0.1:9/reddit/stocks/v1/stats")
+    exc = httpx.ConnectError("[Errno 61] Connection refused", request=request)
+
+    code, message, hint, status_code = cli_main._classify_runtime_error(exc)
+
+    assert code == "network_error"
+    assert "Cannot reach API base URL http://127.0.0.1:9" in message
+    assert "proxy" in (hint or "")
+    assert status_code is None

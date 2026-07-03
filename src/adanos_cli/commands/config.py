@@ -6,13 +6,15 @@ from argparse import Namespace
 
 from .. import config as cli_config
 from ..config import DEFAULT_BASE_URL, clear_config_file, load_config_file, masked_key, save_config_file
+from .secrets import read_api_key_arg
 from ..utils import CliUsageError, print_json, with_json_metadata
 
 
 def handle_config_command(args: Namespace) -> int:
     if args._handler == "config_set":
+        api_key = read_api_key_arg(args)
         save_config_file(
-            api_key=args.api_key,
+            api_key=api_key,
             base_url=args.base_url,
             profile_name=getattr(args, "profile", None),
         )

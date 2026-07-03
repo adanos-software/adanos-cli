@@ -5,6 +5,27 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.31.0] - 2026-07-03
+
+### Added
+- Added explicit `--no-color`, `--no-input`, and `--plain` global flags.
+- Added `--api-key-stdin` and `--api-key-file` for `login`, `auth login`, and `config set`.
+- Added grouped and filterable `adanos endpoint list --platform ... --search ...`.
+- Added an offline CLI audit script and CI step for stable help/output contracts.
+
+### Changed
+- Synced CLI human reports with Adanos Market Sentiment API `1.46.0`, including Polymarket `pulse`, representative `top_mentions` evidence, `market_status`, `daily_trend[].bullish_pct` / `bearish_pct`, and clearer `market_count` vs `current_market_count` breadth labels.
+- Human output for `trending`, `search`, `stats`, and `endpoint call` now uses compact summaries/tables. Use `--json` or `--output json` for raw payloads.
+- JSON report outputs now consistently include `kind` and `command`, with `subcommand` where relevant.
+- Help output for `trending`, `endpoint call`, `watchlist`, `export`, and `scan` now starts from concrete examples.
+- `capabilities` now documents output modes, secret input methods, config paths, exit codes, and the JSON contract.
+
+### Fixed
+- Fixed `adanos ask` routing so common crypto prompts such as `How does BTC look?`, `How does ETH look?`, `How does SOL look?`, and `compare BTC and ETH` use crypto report/compare flows instead of stock reports.
+- Fixed `--output text` so explicit text mode is respected even when stdout is redirected.
+- Replaced raw connection-refused runtime errors with a concise API base URL/network/proxy hint.
+- `doctor` now reports corrupt `config.json` or `credentials.json` instead of silently treating them as empty.
+
 ## [1.30.0] - 2026-06-23
 
 ### Added

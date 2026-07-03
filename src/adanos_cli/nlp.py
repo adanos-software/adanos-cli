@@ -21,6 +21,10 @@ _STOPWORDS = {
 
 _PAIR_RE = re.compile(r"\b([A-Za-z0-9]{2,20})\s*/\s*([A-Za-z0-9]{2,20})\b")
 _VS_RE = re.compile(r"\b([A-Za-z][A-Za-z0-9]{1,19})\s*(?:vs|versus)\s*([A-Za-z][A-Za-z0-9]{1,19})\b", re.IGNORECASE)
+_COMPARE_AND_RE = re.compile(
+    r"\bcompare\s+([A-Za-z][A-Za-z0-9]{1,19})\s+(?:and|with|to)\s+([A-Za-z][A-Za-z0-9]{1,19})\b",
+    re.IGNORECASE,
+)
 _PREF_RE = re.compile(r"\$([A-Za-z][A-Za-z0-9]{1,19})\b")
 _TOKEN_RE = re.compile(r"\b([A-Za-z][A-Za-z0-9]{1,19})\b")
 _WATCHLIST_RE = re.compile(r"\b(?:watchlist|portfolio)\s+([A-Za-z0-9_-]{1,40})\b", re.IGNORECASE)
@@ -122,6 +126,15 @@ def _pick_briefing_profile(lower: str) -> str:
     return "starter"
 
 
+def _is_common_crypto_symbol(symbol: str) -> bool:
+    return symbol.upper().replace("$", "") in _COMMON_CRYPTO_SYMBOLS
+
+
+def _canonical_crypto_symbol(token: str) -> str:
+    normalized = token.upper().replace("$", "")
+    return _CRYPTO_NAME_TO_SYMBOL.get(normalized, normalized)
+
+
 def parse_ask_intent(text: str) -> AskIntent:
     raw = text.strip()
     lower = raw.lower()
@@ -157,6 +170,16 @@ def parse_ask_intent(text: str) -> AskIntent:
         right = vs_pair.group(2).upper()
         if left in _COMMON_CRYPTO_SYMBOLS and right in _COMMON_CRYPTO_SYMBOLS:
             return AskIntent("crypto_compare", left, right)
+        return AskIntent("stock_compare", left, right)
+
+    compare_pair = _COMPARE_AND_RE.search(raw)
+    if compare_pair:
+        left = compare_pair.group(1).upper()
+        right = compare_pair.group(2).upper()
+        crypto_left = _canonical_crypto_symbol(left)
+        crypto_right = _canonical_crypto_symbol(right)
+        if has_crypto_words or (_is_common_crypto_symbol(crypto_left) and _is_common_crypto_symbol(crypto_right)):
+            return AskIntent("crypto_compare", crypto_left, crypto_right)
         return AskIntent("stock_compare", left, right)
 
     if has_trending_words and has_crypto_words:
@@ -203,6 +226,10 @@ def parse_ask_intent(text: str) -> AskIntent:
 
     if pair:
         return AskIntent("crypto_compare", pair.group(1).upper(), pair.group(2).upper())
+
+    crypto_symbol = _pick_crypto_candidate(raw)
+    if crypto_symbol and _is_common_crypto_symbol(crypto_symbol):
+        return AskIntent("crypto_report", crypto_symbol)
 
     ticker = _pick_stock_candidate(raw)
     if ticker:

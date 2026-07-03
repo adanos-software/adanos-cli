@@ -26,12 +26,15 @@ def sanitize_argv(argv: list[str]) -> list[str]:
             sanitized.append("<redacted>")
             redact_next = False
             continue
-        if token == "--api-key":
+        if token in {"--api-key", "--api-key-file"}:
             sanitized.append(token)
             redact_next = True
             continue
         if token.startswith("--api-key="):
             sanitized.append("--api-key=<redacted>")
+            continue
+        if token.startswith("--api-key-file="):
+            sanitized.append("--api-key-file=<redacted>")
             continue
         sanitized.append(token)
 
@@ -41,7 +44,7 @@ def sanitize_argv(argv: list[str]) -> list[str]:
 
 
 def _command_name(argv: list[str]) -> str | None:
-    value_flags = {"--api-key", "--base-url", "--output"}
+    value_flags = {"--api-key", "--api-key-file", "--base-url", "--output"}
     skip_next = False
     for token in argv:
         if skip_next:
