@@ -858,7 +858,11 @@ def _format_polymarket_stock_details(data: dict[str, Any]) -> list[str]:
             f"mood={pulse.get('mood', 'n/a')}, confidence={fmt_num(pulse.get('confidence'))}, "
             f"thin_data={pulse.get('thin_data', 'n/a')}"
         )
-        why = str(pulse.get("why") or "").strip()
+        why_value = pulse.get("why")
+        if isinstance(why_value, list):
+            why = "; ".join(str(item) for item in why_value if str(item).strip())
+        else:
+            why = str(why_value or "").strip()
         if why:
             lines.append(f"  why: {why}")
         warnings = pulse.get("warnings")
@@ -911,6 +915,9 @@ def _format_endpoint_human_result(payload: dict[str, Any]) -> str:
     data = payload.get("data")
     if isinstance(data, dict) and endpoint_id == "polymarket-stocks.stock":
         lines.extend(_format_polymarket_stock_details(data))
+        lines.extend(_format_dict_summary(data))
+        lines.append("Use --json or --output json for the full raw payload.")
+        return "\n".join(lines)
 
     rows = _extract_endpoint_rows(data)
     if rows:

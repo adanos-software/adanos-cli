@@ -161,6 +161,43 @@ def test_endpoint_human_result_uses_table_not_raw_json(monkeypatch, capsys) -> N
     assert "Use --json or --output json" in out
 
 
+def test_polymarket_stock_endpoint_human_formats_pulse_and_evidence(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        cli_main,
+        "invoke_endpoint",
+        lambda client, endpoint_id, args: {
+            "ticker": "TSLA",
+            "pulse": {
+                "mood": "mixed",
+                "confidence": 45,
+                "thin_data": True,
+                "why": ["thin_data", "opposing_market_signals"],
+            },
+            "top_mentions": [
+                {
+                    "question": "Will TSLA close higher?",
+                    "market_status": "tradable",
+                    "sentiment_score": -0.2,
+                }
+            ],
+        },
+    )
+
+    cli_main._call_and_emit_endpoint(
+        object(),
+        "polymarket-stocks.stock",
+        Namespace(ticker="TSLA"),
+        json_mode=False,
+        command="endpoint",
+        subcommand="call",
+    )
+
+    out = capsys.readouterr().out
+    assert "why: thin_data; opposing_market_signals" in out
+    assert "Representative market evidence" in out
+    assert "rank  asset" not in out
+
+
 def test_endpoint_api_error_payload_raises_runtime_error(monkeypatch) -> None:
     monkeypatch.setattr(
         cli_main,

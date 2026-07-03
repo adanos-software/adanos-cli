@@ -507,7 +507,11 @@ def _format_polymarket_stock_details(payload: dict[str, Any]) -> list[str]:
             f"mood={pulse.get('mood', 'n/a')}, confidence={fmt_num(pulse.get('confidence'))}, "
             f"thin_data={pulse.get('thin_data', 'n/a')}"
         )
-        why = str(pulse.get("why") or "").strip()
+        why_value = pulse.get("why")
+        if isinstance(why_value, list):
+            why = "; ".join(str(item) for item in why_value if str(item).strip())
+        else:
+            why = str(why_value or "").strip()
         if why:
             lines.append(f"  pulse why: {why}")
         warnings = pulse.get("warnings")
