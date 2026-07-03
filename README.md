@@ -109,6 +109,8 @@ Persist a key locally:
 
 ```bash
 adanos login --api-key sk_live_xxx
+printf '%s\n' "$ADANOS_API_KEY" | adanos login --api-key-stdin
+adanos login --api-key-file ~/.config/adanos-cli/key.txt
 ```
 
 Request a recovery email for an existing account:
@@ -138,6 +140,14 @@ Priority order:
 - `--api-key`
 - `ADANOS_API_KEY`
 - stored credentials in the active profile
+
+Recommended secret input for automation is `--api-key-stdin` or `--api-key-file`. `--api-key` and `ADANOS_API_KEY` remain supported, but they are easier to leak through shell history or process inspection.
+
+Use `--no-input` in CI or agents to make missing prompts fail fast:
+
+```bash
+adanos --no-input login --api-key-stdin
+```
 
 ## Common Workflows
 
@@ -171,6 +181,8 @@ Raw endpoint access:
 
 ```bash
 adanos endpoint list
+adanos endpoint list --platform polymarket-stocks
+adanos endpoint list --search mentions
 adanos endpoint call root.health
 adanos endpoint call reddit-stocks.trending --limit 10
 adanos endpoint call reddit-stocks.market-sentiment --from 2026-05-01 --to 2026-05-07
@@ -180,12 +192,13 @@ adanos endpoint call sentiment.analyze --text "TSLA looks like a short squeeze s
 ```
 
 Polymarket endpoint output includes both `market_count` for selected-window breadth and `current_market_count` for live-only active-market breadth.
+For API `1.45.1+`, Polymarket `top_mentions` in stock detail output are representative sentiment evidence, not a liquidity leaderboard. When market status is available, the CLI shows `market_status` alongside the evidence. For API `1.46.0+`, human summaries prefer `daily_trend[].bullish_pct` and `daily_trend[].bearish_pct` over deprecated positive/negative/neutral count fields.
 
 Period-capable commands and endpoint calls accept `--from YYYY-MM-DD` and `--to YYYY-MM-DD` as inclusive UTC date windows. `--days N` remains available for v1 compatibility, but is legacy; combining `--from`, `--to` and `--days` returns API validation error `422`. Search commands are the exception: they accept only `--limit` and use the API-managed recent summary window.
 
 ## AI / Automation
 
-The CLI supports machine-readable output via `--output json` or `--quiet`.
+The CLI supports explicit machine-readable output via `--output json` or `--quiet`.
 
 ```bash
 adanos --quiet capabilities
@@ -195,10 +208,25 @@ adanos --quiet ask "How does TSLA look?"
 adanos --quiet endpoint call news-stocks.trending --limit 3
 ```
 
+Output modes:
+- default auto: human text on a TTY, JSON when stdout is piped
+- `--output text`: force human text, even when stdout is redirected
+- `--plain`: force plain text and disable auto JSON
+- `--output json`, `--json`, or `--quiet`: force JSON
+- `--no-color`: disable ANSI color output; `NO_COLOR=1` is also honored
+
 JSON conventions:
 - object payloads include a stable `kind`
 - command wrappers include `command`, and `subcommand` when relevant
 - endpoint-backed payloads include `platform`, `route`, `endpoint`, `path`, and `data`
+- raw endpoint payloads are available with `--json` / `--output json`; human mode prints compact tables or summaries
+
+Exit codes:
+- `0`: success
+- `1`: runtime or network/API failure
+- `2`: usage, auth, or missing configuration error
+
+This CLI is a research and workflow tool, not investment advice.
 
 ## Diagnostics
 

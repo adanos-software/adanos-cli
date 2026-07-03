@@ -34,7 +34,15 @@ def _call_safe(fn) -> dict[str, Any]:
             return {"ok": False, "error": api_error, "data": data}
         return {"ok": True, "data": data}
     except Exception as exc:  # pragma: no cover - thin safety net
-        return {"ok": False, "error": short_error(exc)}
+        return {"ok": False, "error": _friendly_report_error(exc)}
+
+
+def _friendly_report_error(exc: Exception) -> str:
+    text = short_error(exc)
+    lowered = text.lower()
+    if "connection refused" in lowered or "connecterror" in lowered:
+        return "Cannot reach API base URL. Check --base-url, network connectivity, VPN/proxy, or API availability."
+    return text
 
 
 def _as_float(value: Any) -> float | None:
@@ -481,7 +489,71 @@ def _format_source(name: str, payload: dict[str, Any], *, mentions_key: str, sen
     trend = data.get("trend") or "n/a"
     mentions = fmt_num(_resolve_volume_value(data, mentions_key))
     sentiment = fmt_num(data.get(sentiment_key))
-    return f"- {name}: buzz={buzz}, trend={trend}, volume={mentions}, sentiment={sentiment}"
+    return f"- {name}: attention/buzz={buzz}, trend={trend}, volume={mentions}, sentiment_score={sentiment}"
+
+
+def format_polymarket_stock_details(
+    data: dict[str, Any],
+    *,
+    line_prefix: str,
+    detail_prefix: str,
+    pulse_label: str,
+    pulse_detail_label: str | None = None,
+    max_mentions: int,
+    title_width: int,
+    market_breadth_label: str = "market breadth",
+    latest_daily_label: str = "latest daily direction",
+    evidence_heading: str = "representative market evidence",
+) -> list[str]:
+    lines: list[str] = []
+    pulse = data.get("pulse")
+    if isinstance(pulse, dict):
+        lines.append(
+            f"{line_prefix}{pulse_label}: "
+            f"mood={pulse.get('mood', 'n/a')}, confidence={fmt_num(pulse.get('confidence'))}, "
+            f"thin_data={pulse.get('thin_data', 'n/a')}"
+        )
+        why_value = pulse.get("why")
+        if isinstance(why_value, list):
+            why = "; ".join(str(item) for item in why_value if str(item).strip())
+        else:
+            why = str(why_value or "").strip()
+        if why:
+            why_label = f"{pulse_detail_label} why" if pulse_detail_label else "why"
+            lines.append(f"{detail_prefix}{why_label}: {why}")
+        warnings = pulse.get("warnings")
+        if isinstance(warnings, list) and warnings:
+            warnings_label = f"{pulse_detail_label} warnings" if pulse_detail_label else "warnings"
+            lines.append(f"{detail_prefix}{warnings_label}: " + "; ".join(str(item) for item in warnings[:3]))
+        evidence = pulse.get("evidence")
+        if isinstance(evidence, list) and evidence:
+            evidence_label = f"{pulse_detail_label} evidence" if pulse_detail_label else "evidence"
+            lines.append(f"{detail_prefix}{evidence_label}: {len(evidence)} items")
+
+    if data.get("market_count") is not None or data.get("current_market_count") is not None:
+        lines.append(
+            f"{line_prefix}{market_breadth_label}: "
+            f"period={fmt_num(data.get('market_count'))}, current_active={fmt_num(data.get('current_market_count'))}"
+        )
+
+    daily_trend = data.get("daily_trend")
+    if isinstance(daily_trend, list) and daily_trend:
+        latest = next((row for row in reversed(daily_trend) if isinstance(row, dict)), None)
+        if latest:
+            lines.append(
+                f"{line_prefix}{latest_daily_label}: "
+                f"bullish_pct={fmt_num(latest.get('bullish_pct'))}, bearish_pct={fmt_num(latest.get('bearish_pct'))}"
+            )
+
+    top_mentions = data.get("top_mentions")
+    if isinstance(top_mentions, list) and top_mentions:
+        lines.append(f"{line_prefix}{evidence_heading}:")
+        for row in [item for item in top_mentions if isinstance(item, dict)][:max_mentions]:
+            title = str(row.get("question") or row.get("market_title") or row.get("title") or row.get("condition_id") or "market")
+            status = row.get("market_status", row.get("active", "n/a"))
+            lines.append(f"{detail_prefix}{title[:title_width]} | status={status} | sentiment={fmt_num(row.get('sentiment_score'))}")
+
+    return lines
 
 
 def format_stock_report(report: dict[str, Any]) -> str:
@@ -492,6 +564,19 @@ def format_stock_report(report: dict[str, Any]) -> str:
         _format_source("X/Twitter Stocks", report["x"], mentions_key="mentions"),
         _format_source("Polymarket Stocks", report["polymarket"], mentions_key="trade_count"),
     ]
+    polymarket_payload = report["polymarket"]
+    if polymarket_payload.get("ok") and isinstance(polymarket_payload.get("data"), dict):
+        lines.extend(
+            format_polymarket_stock_details(
+                polymarket_payload["data"],
+                line_prefix="  ",
+                detail_prefix="    ",
+                pulse_label="pulse",
+                pulse_detail_label="pulse",
+                max_mentions=3,
+                title_width=70,
+            )
+        )
 
     for key, label in (("reddit_explain", "Reddit Explain"), ("x_explain", "X/Twitter Explain")):
         explain = report.get(key, {})

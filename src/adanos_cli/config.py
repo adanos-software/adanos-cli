@@ -40,6 +40,23 @@ class RuntimeConfig:
     profile_name: str | None = None
 
 
+def inspect_json_file(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {"path": str(path), "exists": False, "ok": True, "error": None}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {"path": str(path), "exists": True, "ok": False, "error": str(exc)}
+    if not isinstance(payload, dict):
+        return {
+            "path": str(path),
+            "exists": True,
+            "ok": False,
+            "error": "JSON root must be an object",
+        }
+    return {"path": str(path), "exists": True, "ok": True, "error": None}
+
+
 def _read_json_file(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}

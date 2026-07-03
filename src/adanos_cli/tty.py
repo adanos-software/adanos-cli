@@ -39,12 +39,17 @@ def supports_color() -> bool:
 
 
 def should_output_json(args: Namespace, *, argv_supplied: bool) -> bool:
-    if getattr(args, "output", "text") == "json":
+    output_mode = getattr(args, "output", None)
+    if output_mode == "json":
         return True
     if bool(getattr(args, "json", False)):
         return True
     if bool(getattr(args, "quiet", False)):
         return True
+    if bool(getattr(args, "plain", False)):
+        return False
+    if output_mode == "text":
+        return False
     if argv_supplied:
         return False
     return not stdout_is_tty()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import io
 import sys
 from pathlib import Path
 
@@ -118,6 +119,91 @@ def test_auth_login_keeps_local_api_key_flag_attached(tmp_path, monkeypatch, cap
     payload = json.loads(capsys.readouterr().out)
     assert payload["profile"] == "sandbox"
     assert payload["api_key_source"] == "credentials"
+
+
+def test_login_accepts_api_key_stdin(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(sys, "stdin", io.StringIO("adanos_key_stdinabcdefghijklmnopqrstuvwxyz\n"))
+
+    rc = cli_main.main(["login", "--api-key-stdin", "--profile", "stdin", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["profile"] == "stdin"
+
+    rc = cli_main.main(["auth", "current", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["profile"] == "stdin"
+
+
+def test_config_set_accepts_api_key_file(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    key_path = tmp_path / "key.txt"
+    key_path.write_text("adanos_key_fileabcdefghijklmnopqrstuvwxyz\n", encoding="utf-8")
+
+    rc = cli_main.main(["config", "set", "--api-key-file", str(key_path), "--profile", "file", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["kind"] == "config_set"
+
+    rc = cli_main.main(["auth", "current", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["profile"] == "file"
+
+
+def test_config_set_api_key_file_expands_home(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    home = tmp_path / "home"
+    home.mkdir()
+    key_path = home / "key.txt"
+    key_path.write_text("adanos_key_homeabcdefghijklmnopqrstuvwxyz\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+
+    rc = cli_main.main(["config", "set", "--api-key-file", "~/key.txt", "--profile", "home", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["kind"] == "config_set"
+
+    rc = cli_main.main(["auth", "current", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["profile"] == "home"
+
+
+def test_login_api_key_file_reports_binary_file_cleanly(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    key_path = tmp_path / "key.bin"
+    key_path.write_bytes(b"\xff\xfe\x00")
+
+    rc = cli_main.main(["login", "--api-key-file", str(key_path), "--json"])
+    payload = json.loads(capsys.readouterr().err)
+    assert rc == 2
+    assert payload["error"]["code"] == "auth_error"
+    assert payload["error"]["message"].startswith("Could not read API key file:")
+
+
+def test_login_no_input_requires_explicit_secret_source(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+
+    rc = cli_main.main(["--no-input", "login", "--json"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    payload = json.loads(captured.err)
+    assert payload["error"]["code"] == "auth_error"
+    assert "--api-key-stdin" in payload["error"]["message"]
+
+
+def test_login_no_input_stdin_rejects_interactive_tty(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr("adanos_cli.commands.secrets.stdin_is_tty", lambda: True)
+
+    rc = cli_main.main(["--no-input", "login", "--api-key-stdin", "--json"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    payload = json.loads(captured.err)
+    assert payload["error"]["code"] == "auth_error"
+    assert "interactive TTY" in payload["error"]["message"]
 
 
 def test_auth_subcommands_accept_json_shortcut(tmp_path, monkeypatch, capsys) -> None:
@@ -247,9 +333,9 @@ def test_login_alias_works(tmp_path, monkeypatch, capsys) -> None:
 
 def test_auth_login_prompts_secret_in_interactive_mode(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
-    monkeypatch.setattr("adanos_cli.commands.auth.is_interactive", lambda: True)
+    monkeypatch.setattr("adanos_cli.commands.secrets.is_interactive", lambda: True)
     monkeypatch.setattr(
-        "adanos_cli.commands.auth.getpass",
+        "adanos_cli.commands.secrets.getpass",
         lambda prompt="": "adanos_key_promptedabcdefghijklmnopqrstuvwxyz123456",
     )
 

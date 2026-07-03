@@ -6,10 +6,11 @@ import json
 import sys
 from pathlib import Path
 
+import httpx
 
 import adanos_cli.config as cli_config
 import adanos_cli.main as cli_main
-from adanos_cli.summaries import build_crypto_report
+from adanos_cli.summaries import build_crypto_report, build_stock_report
 
 
 def _isolate_config(tmp_path: Path, monkeypatch) -> None:
@@ -116,7 +117,33 @@ class _PolymarketNS:
         return {"period_days": days, "stocks": [{"ticker": t, "buzz_score": 79.0, "trade_count": 500, "sentiment_score": 0.2} for t in tickers]}
 
     def stock(self, ticker: str, *, days: int = 7):
-        return {"ticker": ticker, "found": True, "buzz_score": 79.0, "trend": "rising", "trade_count": 500, "sentiment_score": 0.2}
+        return {
+            "ticker": ticker,
+            "found": True,
+            "buzz_score": 79.0,
+            "trend": "rising",
+            "trade_count": 500,
+            "sentiment_score": 0.2,
+            "market_count": 8,
+            "current_market_count": 3,
+            "pulse": {
+                "mood": "bullish",
+                "confidence": 0.72,
+                "thin_data": False,
+                "why": "Market evidence leans positive.",
+                "warnings": ["small sample"],
+                "evidence": [{"condition_id": "abc"}],
+            },
+            "daily_trend": [{"date": "2026-06-28", "bullish_pct": 66.7, "bearish_pct": 33.3}],
+            "top_mentions": [
+                {
+                    "condition_id": "abc",
+                    "question": "Will MSFT close higher?",
+                    "market_status": "active",
+                    "sentiment_score": 0.4,
+                }
+            ],
+        }
 
     def search(self, query: str, *, limit: int = 20):
         return {
@@ -161,6 +188,34 @@ class _FakeClient:
 
     def close(self):
         return None
+
+
+class _UnauthorizedReddit:
+    def trending(self, *, days: int = 1, limit: int = 20, offset: int = 0, type=None):
+        request = httpx.Request("GET", "https://api.adanos.org/reddit/stocks/v1/trending")
+        response = httpx.Response(401, json={"detail": "Invalid API key"}, request=request)
+        raise httpx.HTTPStatusError("Unauthorized", request=request, response=response)
+
+
+class _UnauthorizedClient(_FakeClient):
+    def __init__(self, api_key: str, base_url: str):
+        super().__init__(api_key, base_url)
+        self.reddit = _UnauthorizedReddit()
+
+
+class _BrokenNS:
+    def stock(self, ticker: str, *, days: int = 7):
+        raise ConnectionRefusedError("[Errno 61] Connection refused")
+
+    def explain(self, ticker: str):
+        raise ConnectionRefusedError("[Errno 61] Connection refused")
+
+
+class _BrokenClient:
+    news = _BrokenNS()
+    reddit = _BrokenNS()
+    x = _BrokenNS()
+    polymarket = _BrokenNS()
 
 
 def test_scan_briefing_and_watchlist_report(tmp_path, monkeypatch, capsys) -> None:
@@ -229,6 +284,14 @@ def test_scan_briefing_and_watchlist_report(tmp_path, monkeypatch, capsys) -> No
     assert payload["crypto_focus"]["symbols"] == ["BTC", "ETH"]
 
 
+def test_stock_report_network_errors_are_friendly() -> None:
+    report = build_stock_report(_BrokenClient(), "TSLA", days=7)
+
+    assert report["news"]["ok"] is False
+    assert report["news"]["error"].startswith("Cannot reach API base URL.")
+    assert "[Errno 61]" not in report["news"]["error"]
+
+
 def test_search_command_accepts_limit(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
     monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
@@ -253,6 +316,18 @@ def test_search_command_accepts_limit(tmp_path, monkeypatch, capsys) -> None:
     assert payload["endpoint"] == "news-stocks.search"
     assert payload["data"]["query"] == "Tesla"
     assert payload["result_count"] == 1
+
+
+def test_data_command_401_exits_as_auth_error(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _UnauthorizedClient)
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "trending", "--platform", "reddit-stocks", "--json"])
+    payload = json.loads(capsys.readouterr().err)
+
+    assert rc == 2
+    assert payload["error"]["code"] == "auth_failed"
+    assert payload["error"]["status_code"] == 401
 
 
 def test_crypto_report_search_uses_api_managed_window() -> None:
@@ -289,6 +364,29 @@ def test_ask_routes_scan_briefing_and_watchlist(tmp_path, monkeypatch, capsys) -
     assert payload["name"] == "core"
 
 
+def test_ask_routes_common_crypto_symbols_to_crypto_reports(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
+
+    for prompt, expected_kind in (
+        ("How does BTC look?", "crypto_report"),
+        ("How does ETH look?", "crypto_report"),
+        ("How does SOL look?", "crypto_report"),
+        ("compare BTC and ETH", "crypto_compare"),
+    ):
+        rc = cli_main.main(["--api-key", "adanos_key_test", "ask", prompt, "--json"])
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert payload["kind"] == expected_kind
+        assert payload["command"] == "ask"
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "ask", "How does TSLA look?", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["kind"] == "stock_report"
+    assert payload["command"] == "ask"
+
+
 def test_consensus_and_explain_reports(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
     monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
@@ -297,6 +395,7 @@ def test_consensus_and_explain_reports(tmp_path, monkeypatch, capsys) -> None:
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["kind"] == "consensus_report"
+    assert payload["command"] == "consensus"
     assert payload["ticker"] == "MSFT"
     assert payload["sources_covered"] == 4
     assert payload["signal"] in {"bullish", "neutral", "hot"}
@@ -305,6 +404,7 @@ def test_consensus_and_explain_reports(tmp_path, monkeypatch, capsys) -> None:
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["kind"] == "explain_report"
+    assert payload["command"] == "explain"
     assert payload["profile"] == "daytrader"
     assert "MSFT" in payload["headline"]
     assert payload["x_context"] == "MSFT X discussion"
@@ -314,6 +414,10 @@ def test_consensus_and_explain_reports(tmp_path, monkeypatch, capsys) -> None:
     assert rc == 0
     out = capsys.readouterr().out
     assert "X/Twitter Explain: MSFT X discussion" in out
+    assert "pulse: mood=bullish" in out
+    assert "market breadth: period=8, current_active=3" in out
+    assert "bullish_pct=66.70" in out
+    assert "representative market evidence" in out
 
 
 def test_watch_and_export_workflows(tmp_path, monkeypatch, capsys) -> None:
@@ -344,6 +448,7 @@ def test_watch_and_export_workflows(tmp_path, monkeypatch, capsys) -> None:
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["kind"] == "watch"
+    assert payload["command"] == "watch"
     assert payload["report_kind"] == "watchlist"
     assert payload["iterations"] == 1
     assert payload["snapshots"][0]["report"]["kind"] == "watchlist_report"
@@ -363,3 +468,21 @@ def test_watch_and_export_workflows(tmp_path, monkeypatch, capsys) -> None:
     assert rc == 0
     out = capsys.readouterr().out
     assert out.startswith("source,label,ok,found,buzz_score,sentiment,volume,trend")
+
+    rc = cli_main.main(
+        [
+            "--api-key",
+            "adanos_key_test",
+            "export",
+            "MSFT",
+            "--kind",
+            "stock",
+            "--format",
+            "json",
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["kind"] == "stock_report"
+    assert payload["command"] == "export"
+    assert payload["subcommand"] == "stock"

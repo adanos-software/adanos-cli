@@ -34,6 +34,18 @@ def test_sanitize_argv_redacts_inline_api_key_flag() -> None:
     ]
 
 
+def test_sanitize_argv_redacts_api_key_file_value() -> None:
+    assert sanitize_argv(["login", "--api-key-file", "/tmp/secret-key.txt"]) == [
+        "login",
+        "--api-key-file",
+        "<redacted>",
+    ]
+    assert sanitize_argv(["login", "--api-key-file=/tmp/secret-key.txt"]) == [
+        "login",
+        "--api-key-file=<redacted>",
+    ]
+
+
 def test_sanitize_argv_redacts_missing_api_key_value() -> None:
     assert sanitize_argv(["--api-key"]) == ["--api-key", "<redacted>"]
 
@@ -44,6 +56,10 @@ def test_command_name_skips_split_global_flag_values() -> None:
 
 def test_command_name_skips_inline_global_flag_values() -> None:
     assert _command_name(["--api-key=adanos_key_secret", "whoami"]) == "whoami"
+
+
+def test_command_name_skips_api_key_file_value() -> None:
+    assert _command_name(["--api-key-file", "/tmp/key", "whoami"]) == "whoami"
 
 
 def test_read_activity_returns_newest_first(tmp_path, monkeypatch) -> None:

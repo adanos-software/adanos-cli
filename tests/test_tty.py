@@ -20,7 +20,24 @@ def test_should_output_json_quiet_implies_json() -> None:
 
 def test_should_output_json_auto_for_real_cli_when_stdout_not_tty(monkeypatch) -> None:
     monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
-    assert should_output_json(Namespace(output="text", json=False, quiet=False), argv_supplied=False) is True
+    assert should_output_json(Namespace(output=None, json=False, quiet=False), argv_supplied=False) is True
+
+
+def test_should_output_json_explicit_text_beats_pipe_auto_json(monkeypatch) -> None:
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
+    assert should_output_json(Namespace(output="text", json=False, quiet=False), argv_supplied=False) is False
+
+
+def test_should_output_json_plain_beats_pipe_auto_json(monkeypatch) -> None:
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
+    assert should_output_json(Namespace(output=None, json=False, quiet=False, plain=True), argv_supplied=False) is False
+
+
+def test_should_output_json_explicit_json_beats_plain(monkeypatch) -> None:
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
+    assert should_output_json(Namespace(output="json", json=False, quiet=False, plain=True), argv_supplied=False) is True
+    assert should_output_json(Namespace(output=None, json=True, quiet=False, plain=True), argv_supplied=False) is True
+    assert should_output_json(Namespace(output=None, json=False, quiet=True, plain=True), argv_supplied=False) is True
 
 
 def test_should_output_json_does_not_auto_switch_for_programmatic_calls(monkeypatch) -> None:

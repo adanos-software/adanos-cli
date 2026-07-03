@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import difflib
 import json
 import os
 import re
@@ -51,12 +52,13 @@ from .summaries import (
     format_trending_report,
     format_crypto_compare_report,
     format_crypto_report,
+    format_polymarket_stock_details,
     format_search_fallback_report,
     format_stock_report,
 )
 from .tty import is_interactive, should_output_json, supports_color
 from .update_notifier import format_update_notice, get_update_payload
-from .utils import CliRuntimeError, CliUsageError, csv_to_list, print_err, print_json, to_plain, with_json_metadata
+from .utils import CliRuntimeError, CliUsageError, csv_to_list, fmt_num, print_err, print_json, to_plain, with_json_metadata
 from .watchlists import (
     delete_watchlist,
     get_watchlist,
@@ -68,6 +70,57 @@ from .watchlists import (
 SUPPORT_CONTACT_EMAIL = "support@adanos.org"
 PAID_ACCOUNT_TYPES = {"hobby", "professional"}
 DEFAULT_RECOVERY_REQUEST_URL = "https://adanos.org/api/recover"
+ROOT_COMMANDS = (
+    "onboard",
+    "login",
+    "logout",
+    "auth",
+    "config",
+    "doctor",
+    "whoami",
+    "logs",
+    "capabilities",
+    "completion",
+    "plugins",
+    "shell",
+    "watch",
+    "scan",
+    "briefing",
+    "watchlist",
+    "endpoint",
+    "stock",
+    "crypto",
+    "ask",
+    "consensus",
+    "explain",
+    "export",
+    "trending",
+    "search",
+    "compare",
+    "stats",
+    "health",
+    "account",
+)
+
+
+class AdanosArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        self.print_usage(sys.stderr)
+        print_err(f"error: {message}")
+        hint = _usage_hint(message)
+        if hint:
+            print_err(f"hint: {hint}")
+        raise SystemExit(2)
+
+
+def _usage_hint(message: str) -> str:
+    match = re.search(r"invalid choice: '([^']+)'", message)
+    if match:
+        token = match.group(1)
+        suggestion = difflib.get_close_matches(token, ROOT_COMMANDS, n=1)
+        if suggestion:
+            return f"Did you mean `{suggestion[0]}`? Run `adanos {suggestion[0]} --help`."
+    return "Run `adanos --help` or `adanos --output json capabilities`."
 
 
 def _load_sdk_client_class() -> Any:
@@ -316,11 +369,23 @@ def _print_shell_help(*, has_api_key: bool) -> None:
     print("")
     print(_style("Shell Controls", fg="cyan", bold=True))
     print("  /help           show this guide")
+    print("  /examples       show common stock, crypto, endpoint examples")
     print("  /history        show recent commands")
     print("  /retry          rerun the most recent command")
     print("  /clear          clear screen and redraw header")
     print("  /exit           exit shell")
     print("  /<command> ...  run any CLI command")
+
+
+def _print_shell_examples() -> None:
+    print(_style("Examples", fg="cyan", bold=True))
+    print('  How does BTC look?')
+    print('  compare BTC and ETH')
+    print('  How does TSLA look?')
+    print("  /crypto BTC/ETH")
+    print("  /trending --platform reddit-stocks --limit 5")
+    print("  /endpoint list --platform polymarket-stocks --search stock")
+    print("  /endpoint call polymarket-stocks.stock --ticker TSLA")
 
 
 def _shell_enter_fullscreen() -> None:
@@ -352,7 +417,7 @@ def _resolve_shell_fullscreen(flag_value: bool | None) -> bool:
 
 
 def _is_shell_meta_command(token: str) -> bool:
-    return token in {"help", "history", "retry", "exit", "quit", "clear"}
+    return token in {"help", "examples", "history", "retry", "exit", "quit", "clear"}
 
 
 def _is_cli_command(token: str) -> bool:
@@ -479,6 +544,9 @@ def _run_shell(base_url: str, *, has_api_key: bool, use_fullscreen: bool, api_ke
             if command == "help":
                 _print_shell_help(has_api_key=has_api_key)
                 continue
+            if command == "examples":
+                _print_shell_examples()
+                continue
             if command == "history":
                 entries = load_history(limit=10)
                 if not entries:
@@ -520,7 +588,7 @@ def _run_shell(base_url: str, *, has_api_key: bool, use_fullscreen: bool, api_ke
 def _normalize_global_cli_flags(argv: list[str]) -> list[str]:
     """Allow global flags to appear after subcommands by hoisting them to the front."""
     value_flags = {"--api-key", "--base-url", "--output"}
-    bare_flags = {"--version", "--quiet"}
+    bare_flags = {"--version", "--quiet", "--no-color", "--no-input", "--plain"}
     command_prefix: list[str] = []
     scan_idx = 0
     while scan_idx < len(argv):
@@ -629,38 +697,12 @@ def _emit_error(
     print_err(line)
 
 
+def _emit_json_report(data: dict[str, Any], *, command: str, subcommand: str | None = None) -> None:
+    print_json(with_json_metadata(data, command=command, subcommand=subcommand))
+
+
 def _capabilities_payload(base_url: str, *, has_api_key: bool) -> dict[str, Any]:
-    commands = [
-        "onboard",
-        "login",
-        "logout",
-        "auth",
-        "config",
-        "doctor",
-        "whoami",
-        "logs",
-        "capabilities",
-        "completion",
-        "plugins",
-        "shell",
-        "watch",
-        "scan",
-        "briefing",
-        "watchlist",
-        "endpoint",
-        "stock",
-        "crypto",
-        "ask",
-        "consensus",
-        "explain",
-        "export",
-        "trending",
-        "search",
-        "compare",
-        "stats",
-        "health",
-        "account",
-    ]
+    commands = list(ROOT_COMMANDS)
     return {
         "kind": "capabilities",
         "command": "capabilities",
@@ -668,12 +710,26 @@ def _capabilities_payload(base_url: str, *, has_api_key: bool) -> dict[str, Any]
         "version": __version__,
         "api_base_url": base_url,
         "api_key_configured": has_api_key,
-        "output_modes": ["text", "json"],
+        "output_modes": ["auto", "text", "json"],
+        "global_flags": {
+            "output": ["--output text", "--output json", "--quiet", "--plain"],
+            "interaction": ["--no-color", "--no-input"],
+            "auth": ["--api-key", "--base-url"],
+        },
         "error_channel": "stderr",
         "exit_codes": {
             "0": "success",
             "1": "runtime_error",
             "2": "usage_or_auth_error",
+        },
+        "json_contract": {
+            "required": ["kind", "command"],
+            "optional": ["subcommand", "data"],
+            "endpoint_result": ["platform", "route", "endpoint", "path", "data"],
+        },
+        "config_paths": {
+            "config": str(cli_config.CONFIG_PATH),
+            "credentials": str(cli_config.CREDENTIALS_PATH),
         },
         "commands": commands,
         "endpoint_count": len(ENDPOINTS),
@@ -686,13 +742,17 @@ def _capabilities_payload(base_url: str, *, has_api_key: bool) -> dict[str, Any]
                 "adanos onboard redeem --token <delivery_token> --save",
             ],
             "alternatives": [
+                "adanos login --api-key-stdin",
+                "adanos login --api-key-file ~/.config/adanos-cli/key.txt",
                 "adanos login --api-key sk_live_xxx",
                 "adanos auth login --api-key sk_live_xxx --profile prod",
                 "adanos config set --api-key sk_live_xxx",
                 "ADANOS_API_KEY env var",
                 "--api-key flag",
             ],
+            "secret_input": ["prompt", "--api-key-stdin", "--api-key-file", "--api-key", "ADANOS_API_KEY"],
         },
+        "endpoint_list_filters": ["--platform", "--search", "--json"],
         "discovery_commands": [
             "adanos --output json capabilities",
             "adanos --output json endpoint list",
@@ -737,6 +797,95 @@ def _endpoint_result_payload(endpoint_id: str, data: Any, *, command: str, subco
     if result_count is not None:
         payload["result_count"] = result_count
     return payload
+
+
+def _first_present(row: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    for key in keys:
+        value = row.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _format_compact_rows(rows: list[dict[str, Any]], *, limit: int = 12) -> list[str]:
+    if not rows:
+        return ["- no rows returned"]
+    out = ["rank  asset        buzz     sentiment  volume   trend/status"]
+    for index, row in enumerate(rows[:limit], start=1):
+        rank = _first_present(row, ("rank", "position")) or index
+        asset = _first_present(row, ("ticker", "symbol", "asset", "sector", "country", "name", "id")) or "n/a"
+        buzz = _first_present(row, ("buzz_score", "buzz", "score"))
+        sentiment = _first_present(row, ("sentiment_score", "sentiment", "bullish_pct"))
+        volume = _first_present(row, ("mentions", "trade_count", "volume", "count", "current_market_count", "market_count"))
+        status = _first_present(row, ("trend", "market_status", "status", "active"))
+        out.append(
+            f"{str(rank)[:4]:<4}  {str(asset)[:11]:<11}  {fmt_num(buzz):<7}  "
+            f"{fmt_num(sentiment):<9}  {fmt_num(volume):<7}  {str('n/a' if status is None else status)[:18]}"
+        )
+    if len(rows) > limit:
+        out.append(f"- {len(rows) - limit} more rows hidden; use --json for the full payload")
+    return out
+
+
+def _extract_endpoint_rows(data: Any) -> list[dict[str, Any]]:
+    if isinstance(data, list):
+        return [row for row in data if isinstance(row, dict)]
+    if not isinstance(data, dict):
+        return []
+    for key in ("results", "stocks", "tokens", "rows", "entries", "markets", "top_mentions", "data"):
+        value = data.get(key)
+        if isinstance(value, list):
+            return [row for row in value if isinstance(row, dict)]
+    return []
+
+
+def _format_dict_summary(data: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    for key, value in data.items():
+        if isinstance(value, (dict, list)):
+            continue
+        lines.append(f"- {key}: {fmt_num(value)}")
+        if len(lines) >= 16:
+            break
+    return lines or ["- no scalar summary fields returned"]
+
+
+def _format_endpoint_human_result(payload: dict[str, Any]) -> str:
+    endpoint_id = str(payload.get("endpoint") or "endpoint")
+    lines = [
+        f"Endpoint: {endpoint_id}",
+        f"Path: {payload.get('path', 'n/a')}",
+    ]
+    if payload.get("result_count") is not None:
+        lines.append(f"Rows: {payload['result_count']}")
+
+    data = payload.get("data")
+    if isinstance(data, dict) and endpoint_id == "polymarket-stocks.stock":
+        lines.extend(
+            format_polymarket_stock_details(
+                data,
+                line_prefix="- ",
+                detail_prefix="  ",
+                pulse_label="Pulse",
+                max_mentions=5,
+                title_width=72,
+                market_breadth_label="Market breadth",
+                latest_daily_label="Latest daily direction",
+                evidence_heading="Representative market evidence",
+            )
+        )
+        lines.extend(_format_dict_summary(data))
+    else:
+        rows = _extract_endpoint_rows(data)
+        if rows:
+            lines.extend(_format_compact_rows(rows))
+        elif isinstance(data, dict):
+            lines.extend(_format_dict_summary(data))
+        else:
+            lines.append(f"- value: {fmt_num(data)}")
+
+    lines.append("Use --json or --output json for the full raw payload.")
+    return "\n".join(lines)
 
 
 def _format_api_detail(detail: Any) -> str | None:
@@ -917,6 +1066,24 @@ def _classify_runtime_error(exc: Exception) -> tuple[str, str, str | None, int |
 
     if isinstance(exc, CliRuntimeError):
         return ("api_error", message, None, status_code)
+
+    if isinstance(exc, httpx.TransportError) or "connection refused" in lowered or "connecterror" in lowered:
+        try:
+            request = exc.request
+        except Exception:
+            request = None
+        url = getattr(request, "url", None)
+        if url is not None:
+            base_url = f"{url.scheme}://{url.host}" + (f":{url.port}" if url.port else "")
+            network_message = f"Cannot reach API base URL {base_url}."
+        else:
+            network_message = "Cannot reach configured API base URL."
+        return (
+            "network_error",
+            network_message,
+            "Check --base-url, network connectivity, VPN/proxy, or API availability.",
+            status_code,
+        )
 
     if status_code == 401:
         return (
@@ -1249,6 +1416,27 @@ def _build_doctor_payload(runtime_cfg: cli_config.RuntimeConfig) -> dict[str, An
             "message": str(cli_config.CONFIG_DIR),
         },
     ]
+
+    for label, path in (("Config JSON", cli_config.CONFIG_PATH), ("Credentials JSON", cli_config.CREDENTIALS_PATH)):
+        status = cli_config.inspect_json_file(path)
+        if not status["exists"]:
+            checks.append(
+                {
+                    "name": label,
+                    "status": "pass",
+                    "message": f"not present at {path}",
+                }
+            )
+            continue
+        checks.append(
+            {
+                "name": label,
+                "status": "pass" if status["ok"] else "fail",
+                "message": f"valid JSON object at {path}" if status["ok"] else f"corrupt JSON at {path}",
+                "detail": status.get("error") if not status["ok"] else None,
+                "next_step": "Fix or remove this file, then run `adanos login` again." if not status["ok"] else None,
+            }
+        )
 
     credentials_payload = load_credentials_file()
     credentials_profiles = credentials_payload.get("profiles") or {}
@@ -1744,6 +1932,15 @@ def _run_onboard_wizard(args: Namespace, base_url: str, *, json_mode: bool, runt
         )
         return 2
 
+    if bool(getattr(args, "no_input", False)):
+        _emit_error(
+            json_mode=False,
+            code="onboard_wizard_unsupported",
+            message="Interactive wizard is disabled by --no-input",
+            hint="Use explicit commands: onboard register, then onboard redeem",
+        )
+        return 2
+
     if not is_interactive():
         _emit_error(
             json_mode=False,
@@ -1856,7 +2053,7 @@ def _period_from_args(args: Namespace) -> dict[str, Any]:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = AdanosArgumentParser(
         prog="adanos",
         description=(
             "Comprehensive CLI for api.adanos.org. Supports all OpenAPI endpoints for "
@@ -1879,13 +2076,16 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "Output:\n"
             "  Human-readable by default. Use --output json / --quiet for machines.\n"
-            "  Direct CLI invocations auto-switch to JSON when stdout is piped."
+            "  Direct CLI invocations auto-switch to JSON when stdout is piped unless --output text is explicit."
         ),
     )
     parser.add_argument("--api-key", help="Override API key for this call")
     parser.add_argument("--base-url", help=f"Override base URL (default: {DEFAULT_BASE_URL})")
-    parser.add_argument("--output", choices=["text", "json"], default="text", help="Output mode for agent/human consumption")
+    parser.add_argument("--output", choices=["text", "json"], default=None, help="Output mode. Default is auto: text on TTY, JSON when stdout is piped.")
     parser.add_argument("--quiet", action="store_true", help="Suppress status-style text output; implies JSON")
+    parser.add_argument("--plain", action="store_true", help="Force plain text output; disables auto JSON for piped stdout")
+    parser.add_argument("--no-color", action="store_true", help="Disable ANSI color output")
+    parser.add_argument("--no-input", action="store_true", help="Do not prompt for interactive input")
     parser.add_argument("--version", action="store_true", help="Print CLI version and exit")
 
     subs = parser.add_subparsers(dest="command")
@@ -1932,14 +2132,17 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Store an API key in a local profile.",
         epilog=(
             "Non-interactive:\n"
-            "  --api-key is required when stdin/stdout is not a TTY.\n"
+            "  Use --api-key-stdin or --api-key-file when stdin/stdout is not a TTY.\n"
             "\n"
             "Examples:\n"
-            "  adanos auth login --api-key sk_live_xxx --profile prod\n"
+            "  printf '%s\\n' sk_live_xxx | adanos auth login --api-key-stdin --profile prod\n"
+            "  adanos auth login --api-key-file ~/.config/adanos-cli/key.txt --profile prod\n"
             "  adanos login --api-key sk_live_xxx\n"
         ),
     )
     p_auth_login.add_argument("--api-key", help="API key to store")
+    p_auth_login.add_argument("--api-key-stdin", action="store_true", help="Read API key from one line on stdin")
+    p_auth_login.add_argument("--api-key-file", help="Read API key from a local file")
     p_auth_login.add_argument("--profile", help="Profile name to create or update")
     p_auth_login.add_argument("--base-url", help="Optional base URL to store globally")
     p_auth_login.add_argument("--json", action="store_true")
@@ -1970,14 +2173,18 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Shortcut for `adanos auth login`.",
         epilog=(
             "Non-interactive:\n"
-            "  --api-key is required when stdin/stdout is not a TTY.\n"
+            "  Use --api-key-stdin or --api-key-file when stdin/stdout is not a TTY.\n"
             "\n"
             "Examples:\n"
+            "  printf '%s\\n' sk_live_xxx | adanos login --api-key-stdin\n"
+            "  adanos login --api-key-file ~/.config/adanos-cli/key.txt\n"
             "  adanos login --api-key sk_live_xxx\n"
             "  adanos login --api-key sk_live_xxx --profile prod\n"
         ),
     )
     p_login.add_argument("--api-key", help="API key to store")
+    p_login.add_argument("--api-key-stdin", action="store_true", help="Read API key from one line on stdin")
+    p_login.add_argument("--api-key-file", help="Read API key from a local file")
     p_login.add_argument("--profile", help="Profile name to create or update")
     p_login.add_argument("--base-url", help="Optional base URL to store globally")
     p_login.add_argument("--json", action="store_true")
@@ -1991,7 +2198,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_config = subs.add_parser("config", help="Manage local CLI config")
     cfg_subs = p_config.add_subparsers(dest="config_cmd", required=True)
     p_cfg_set = cfg_subs.add_parser("set", help="Set API key and optional base URL")
-    p_cfg_set.add_argument("--api-key", required=True)
+    p_cfg_set.add_argument("--api-key")
+    p_cfg_set.add_argument("--api-key-stdin", action="store_true", help="Read API key from one line on stdin")
+    p_cfg_set.add_argument("--api-key-file", help="Read API key from a local file")
     p_cfg_set.add_argument("--base-url")
     p_cfg_set.add_argument("--profile", help="Profile name to update instead of the active profile")
     p_cfg_set.add_argument("--json", action="store_true")
@@ -2067,7 +2276,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_watch.add_argument("--json", action="store_true")
     p_watch.set_defaults(_handler="watch")
 
-    p_scan = subs.add_parser("scan", help="Run fast sentiment screeners for stocks or crypto")
+    p_scan = subs.add_parser(
+        "scan",
+        help="Run fast sentiment screeners for stocks or crypto",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  adanos scan --asset stocks --style daytrader --top 10\n"
+            "  adanos scan --asset crypto --min-buzz 60 --min-volume 50\n"
+        ),
+    )
     p_scan.add_argument("--asset", choices=["stocks", "crypto"], required=True)
     p_scan.add_argument("--style", choices=["starter", "daytrader", "swing", "investor"], help="Apply preset filters for your trading style")
     _add_period_args(p_scan, default_days=7)
@@ -2091,7 +2309,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_briefing.add_argument("--json", action="store_true")
     p_briefing.set_defaults(_handler="briefing")
 
-    p_watchlist = subs.add_parser("watchlist", help="Manage local watchlists and run reports")
+    p_watchlist = subs.add_parser(
+        "watchlist",
+        help="Manage local watchlists and run reports",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  adanos watchlist add core --asset stocks --symbols TSLA,NVDA,AAPL\n"
+            "  adanos watchlist report core --asset all\n"
+        ),
+    )
     wl_subs = p_watchlist.add_subparsers(dest="watchlist_cmd", required=True)
 
     p_wl_list = wl_subs.add_parser("list", help="List all watchlists")
@@ -2129,14 +2356,36 @@ def _build_parser() -> argparse.ArgumentParser:
     p_wl_report.add_argument("--json", action="store_true")
     p_wl_report.set_defaults(_handler="watchlist_report")
 
-    p_endpoint = subs.add_parser("endpoint", help="List/call every supported OpenAPI endpoint")
+    p_endpoint = subs.add_parser(
+        "endpoint",
+        help="List/call every supported OpenAPI endpoint",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  adanos endpoint list --platform polymarket-stocks --search stock\n"
+            "  adanos endpoint call reddit-stocks.trending --limit 10\n"
+            "  adanos endpoint call polymarket-stocks.stock --ticker TSLA\n"
+        ),
+    )
     ep_subs = p_endpoint.add_subparsers(dest="endpoint_cmd", required=True)
 
     p_ep_list = ep_subs.add_parser("list", help="List all endpoint IDs")
+    p_ep_list.add_argument("--platform", choices=["root", "news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks", "sentiment"])
+    p_ep_list.add_argument("--search", help="Filter endpoint IDs, paths, or descriptions")
     p_ep_list.add_argument("--json", action="store_true")
     p_ep_list.set_defaults(_handler="endpoint_list")
 
-    p_ep_call = ep_subs.add_parser("call", help="Call one endpoint by ID")
+    p_ep_call = ep_subs.add_parser(
+        "call",
+        help="Call one endpoint by ID",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  adanos endpoint call root.health\n"
+            "  adanos endpoint call reddit-stocks.trending --limit 10\n"
+            "  adanos endpoint call polymarket-stocks.stock --ticker TSLA\n"
+        ),
+    )
     p_ep_call.add_argument("endpoint_id", choices=sorted(ENDPOINTS.keys()))
     p_ep_call.add_argument("--ticker")
     p_ep_call.add_argument("--symbol")
@@ -2178,7 +2427,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_explain.add_argument("--json", action="store_true")
     p_explain.set_defaults(_handler="explain_report")
 
-    p_export = subs.add_parser("export", help="Render a report as json, markdown, or csv")
+    p_export = subs.add_parser(
+        "export",
+        help="Render a report as json, markdown, or csv",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  adanos export TSLA --kind consensus --format md\n"
+            "  adanos export core --kind watchlist --asset all --format json --output-path report.json\n"
+        ),
+    )
     p_export.add_argument("target", help="Ticker, symbol, or watchlist name")
     p_export.add_argument("--kind", choices=["stock", "crypto", "consensus", "watchlist"], required=True)
     p_export.add_argument("--asset", choices=["stocks", "crypto", "all"], default="stocks")
@@ -2200,7 +2458,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ask.add_argument("--json", action="store_true")
     p_ask.set_defaults(_handler="ask")
 
-    p_trending = subs.add_parser("trending", help="Fetch trending lists")
+    p_trending = subs.add_parser(
+        "trending",
+        help="Fetch trending lists",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  adanos trending --platform reddit-stocks --limit 5\n"
+            "  adanos trending --platform reddit-crypto --dimension tokens --limit 10\n"
+            "  adanos trending --platform polymarket-stocks --dimension sectors --from 2026-06-01 --to 2026-06-07\n"
+        ),
+    )
     p_trending.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], required=True)
     p_trending.add_argument("--dimension", choices=["main", "stocks", "sectors", "countries", "tokens"], default="main")
     _add_period_args(p_trending, default_days=1)
@@ -2293,9 +2561,7 @@ def _call_and_emit_endpoint(
         print_json(payload)
         return
 
-    print(f"Endpoint: {endpoint_id}")
-    print(f"Path: {ENDPOINTS[endpoint_id].path}")
-    print_json(payload["data"])
+    print(_format_endpoint_human_result(payload))
 
 
 def _run_health(client: Any, args: Namespace) -> None:
@@ -2326,7 +2592,20 @@ def _run_health(client: Any, args: Namespace) -> None:
         if args.json:
             print_json(payload)
         else:
-            print_json(report)
+            print("Health checks")
+            for endpoint_id, item in report.items():
+                if isinstance(item, dict):
+                    if "status" in item:
+                        status = item["status"]
+                    elif "ok" in item:
+                        status = item["ok"]
+                    elif "error" in item:
+                        status = item["error"]
+                    else:
+                        status = "n/a"
+                else:
+                    status = item
+                print(f"- {endpoint_id}: {status}")
         return
 
     endpoint_id = f"{args.platform}.health"
@@ -2438,7 +2717,7 @@ def _run_scan(client: Any, args: Namespace) -> None:
             report["applied_filters"] = thresholds
         report["top"] = max(1, int(args.top))
         if args.json:
-            print_json(report)
+            _emit_json_report(report, command="scan")
             return
         print(format_stock_scan_report(report, top=args.top))
         return
@@ -2460,7 +2739,7 @@ def _run_scan(client: Any, args: Namespace) -> None:
         report["applied_filters"] = thresholds
     report["top"] = max(1, int(args.top))
     if args.json:
-        print_json(report)
+        _emit_json_report(report, command="scan")
         return
     print(format_crypto_scan_report(report, top=args.top))
 
@@ -2488,7 +2767,7 @@ def _run_briefing(client: Any, args: Namespace) -> None:
         crypto_focus=crypto_focus,
     )
     if args.json:
-        print_json(report)
+        _emit_json_report(report, command="briefing")
         return
     print(format_market_briefing_report(report))
 
@@ -2703,7 +2982,7 @@ def _run_watchlist_report(client: Any, args: Namespace) -> None:
         **_period_from_args(args),
     )
     if args.json:
-        print_json(report)
+        _emit_json_report(report, command="watchlist", subcommand="report")
         return
     print(_format_watchlist_report_payload(report))
 
@@ -2711,7 +2990,7 @@ def _run_watchlist_report(client: Any, args: Namespace) -> None:
 def _run_stock_report(client: Any, args: Namespace) -> None:
     report = build_stock_report(client, args.ticker, **_period_from_args(args))
     if args.json:
-        print_json(report)
+        _emit_json_report(report, command="stock")
         return
     print(format_stock_report(report))
 
@@ -2840,8 +3119,8 @@ def _format_consensus_report(payload: dict[str, Any]) -> str:
     lines = [
         f"Consensus for {payload.get('ticker', 'n/a')} ({payload.get('days', 'n/a')}d)",
         (
-            f"- Signal: {payload.get('signal', 'n/a')} | confidence={payload.get('confidence', 'n/a')} "
-            f"| buzz={payload.get('consensus_buzz', 'n/a')} | sentiment={payload.get('consensus_sentiment', 'n/a')}"
+            f"- Signal: {payload.get('signal', 'n/a')} | confidence_score={payload.get('confidence', 'n/a')} "
+            f"| consensus_buzz={payload.get('consensus_buzz', 'n/a')} | sentiment_score={payload.get('consensus_sentiment', 'n/a')}"
         ),
         f"- Cross-source coverage: {payload.get('sources_covered', 0)} sources, volume={payload.get('total_volume', 0)}",
     ]
@@ -2856,7 +3135,7 @@ def _format_consensus_report(payload: dict[str, Any]) -> str:
             continue
         lines.append(
             f"- {source.get('label', source.get('source', 'source'))}: "
-            f"buzz={source.get('buzz_score', 'n/a')}, sentiment={source.get('sentiment', 'n/a')}, "
+            f"attention/buzz={source.get('buzz_score', 'n/a')}, sentiment_score={source.get('sentiment', 'n/a')}, "
             f"volume={source.get('volume', 0)}, trend={source.get('trend', 'n/a')}"
         )
     reddit_explanation = str(payload.get("reddit_explanation") or "").strip()
@@ -2872,7 +3151,7 @@ def _run_consensus_report(client: Any, args: Namespace) -> None:
     stock_report = build_stock_report(client, args.ticker, **_period_from_args(args))
     payload = _build_consensus_report(stock_report)
     if args.json:
-        print_json(payload)
+        _emit_json_report(payload, command="consensus")
         return
     print(_format_consensus_report(payload))
 
@@ -2946,7 +3225,7 @@ def _run_explain_report(client: Any, args: Namespace) -> None:
     consensus = _build_consensus_report(stock_report)
     payload = _build_explain_report(consensus, reader_profile=args.profile)
     if args.json:
-        print_json(payload)
+        _emit_json_report(payload, command="explain")
         return
     print(_format_explain_report(payload))
 
@@ -3064,7 +3343,8 @@ def _run_export(client: Any, args: Namespace) -> None:
         asset=getattr(args, "asset", "stocks"),
     )
     if args.format == "json":
-        rendered = json.dumps(to_plain(report), indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+        export_payload = with_json_metadata(report, command="export", subcommand=args.kind)
+        rendered = json.dumps(to_plain(export_payload), indent=2, ensure_ascii=False, sort_keys=True) + "\n"
     elif args.format == "md":
         rendered = _format_named_report(args.kind, report) + "\n"
     else:
@@ -3105,7 +3385,7 @@ def _run_watch(client: Any, args: Namespace) -> None:
         time.sleep(args.refresh)
 
     if args.json:
-        print_json(
+        _emit_json_report(
             {
                 "kind": "watch",
                 "target": args.target,
@@ -3113,7 +3393,8 @@ def _run_watch(client: Any, args: Namespace) -> None:
                 "refresh_seconds": args.refresh,
                 "iterations": len(snapshots),
                 "snapshots": snapshots,
-            }
+            },
+            command="watch",
         )
 
 
@@ -3124,7 +3405,7 @@ def _run_crypto_report(client: Any, args: Namespace) -> None:
     if len(symbols) >= 2:
         report = build_crypto_compare_report(client, symbols[:10], **_period_from_args(args))
         if args.json:
-            print_json(report)
+            _emit_json_report(report, command="crypto", subcommand="compare")
             return
         print(format_crypto_compare_report(report))
         return
@@ -3134,7 +3415,7 @@ def _run_crypto_report(client: Any, args: Namespace) -> None:
 
     report = build_crypto_report(client, symbols[0], **_period_from_args(args))
     if args.json:
-        print_json(report)
+        _emit_json_report(report, command="crypto")
         return
     print(format_crypto_report(report))
 
@@ -3252,7 +3533,7 @@ def _run_ask(client: Any, args: Namespace) -> None:
                 "crypto": build_crypto_scan_report(client, **_period_from_args(args), limit=25),
             }
             if args.json:
-                print_json(payload)
+                _emit_json_report(payload, command="ask", subcommand="scan")
                 return
             print("Combined scan report")
             print("")
@@ -3295,7 +3576,7 @@ def _run_ask(client: Any, args: Namespace) -> None:
         asset = "crypto" if (intent.primary or "").lower() == "crypto" else "stocks"
         report = build_trending_report(client, asset=asset, **_period_from_args(args), limit=5)
         if args.json:
-            print_json(report)
+            _emit_json_report(report, command="ask", subcommand="trending")
             return
         print(format_trending_report(report))
         return
@@ -3310,7 +3591,7 @@ def _run_ask(client: Any, args: Namespace) -> None:
                 "first": {"input": intent.primary, "query": first_from or intent.primary, "ticker": tickers[0]},
                 "second": {"input": intent.secondary, "query": second_from or intent.secondary, "ticker": tickers[1]},
             }
-            print_json(report)
+            _emit_json_report(report, command="ask", subcommand="stock_compare")
             return
         if tickers[0] != intent.primary.upper():
             print(f"Resolved '{intent.primary.upper()}' -> {tickers[0]}")
@@ -3331,7 +3612,7 @@ def _run_ask(client: Any, args: Namespace) -> None:
                     "ticker": ticker,
                     "source": resolved_source,
                 }
-            print_json(report)
+            _emit_json_report(report, command="ask", subcommand="stock_report")
             return
         if resolved_from and resolved_source and ticker != intent.primary:
             print(f"Resolved '{resolved_from}' -> {ticker} via {resolved_source} search")
@@ -3341,7 +3622,7 @@ def _run_ask(client: Any, args: Namespace) -> None:
     if intent.kind == "crypto_report" and intent.primary:
         report = build_crypto_report(client, intent.primary, **_period_from_args(args))
         if args.json:
-            print_json(report)
+            _emit_json_report(report, command="ask", subcommand="crypto_report")
             return
         print(format_crypto_report(report))
         return
@@ -3349,14 +3630,14 @@ def _run_ask(client: Any, args: Namespace) -> None:
     if intent.kind == "crypto_compare" and intent.primary and intent.secondary:
         report = build_crypto_compare_report(client, [intent.primary, intent.secondary], **_period_from_args(args))
         if args.json:
-            print_json(report)
+            _emit_json_report(report, command="ask", subcommand="crypto_compare")
             return
         print(format_crypto_compare_report(report))
         return
 
     report = build_search_fallback_report(client, text)
     if args.json:
-        print_json(report)
+        _emit_json_report(report, command="ask", subcommand="search_fallback")
         return
     print(format_search_fallback_report(report))
 
@@ -3436,7 +3717,7 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
     if getattr(args, "command", "") == "config":
         try:
             return _handle_config(args)
-        except CliUsageError as exc:
+        except (CliUsageError, ValueError) as exc:
             _emit_error(
                 json_mode=args.json,
                 code="config_error",
@@ -3592,6 +3873,8 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
         )
 
     if handler == "endpoint_list":
+        search_term = str(getattr(args, "search", "") or "").strip().lower()
+        platform_filter = str(getattr(args, "platform", "") or "").strip()
         endpoints = [
             with_json_metadata(
                 {
@@ -3606,12 +3889,25 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
                 subcommand="list",
             )
             for spec in list_endpoints()
+            if (not platform_filter or spec.endpoint_id.split(".", 1)[0] == platform_filter)
+            and (
+                not search_term
+                or search_term in spec.endpoint_id.lower()
+                or search_term in spec.path.lower()
+                or search_term in (spec.description or "").lower()
+            )
         ]
         if args.json:
             print_json(endpoints)
         else:
             print(f"Supported OpenAPI endpoints: {len(endpoints)}")
+            current_platform = None
             for spec in endpoints:
+                platform = str(spec["id"]).split(".", 1)[0]
+                if platform != current_platform:
+                    current_platform = platform
+                    print("")
+                    print(f"{platform}")
                 req = f" required={','.join(spec['required'])}" if spec["required"] else ""
                 opt = f" optional={','.join(spec['optional'])}" if spec["optional"] else ""
                 print(f"- {spec['id']}: {spec['path']}{req}{opt}")
@@ -3713,7 +4009,7 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
             hint=hint,
             status_code=status_code,
         )
-        return 1
+        return 2 if code == "auth_failed" else 1
     finally:
         if client is not None:
             try:
@@ -3726,7 +4022,19 @@ def main(argv: list[str] | None = None, *, invocation_source: str = "direct") ->
     argv_supplied = argv is not None
     raw_argv = list(argv) if argv is not None else sys.argv[1:]
     started = time.monotonic()
-    exit_code = _main_impl(raw_argv, argv_supplied=argv_supplied)
+    no_color_requested = "--no-color" in raw_argv
+    had_no_color = "NO_COLOR" in os.environ
+    previous_no_color = os.environ.get("NO_COLOR")
+    if no_color_requested:
+        os.environ["NO_COLOR"] = "1"
+    try:
+        exit_code = _main_impl(raw_argv, argv_supplied=argv_supplied)
+    finally:
+        if no_color_requested:
+            if had_no_color:
+                os.environ["NO_COLOR"] = previous_no_color or ""
+            else:
+                os.environ.pop("NO_COLOR", None)
     if _should_record_activity(raw_argv):
         try:
             append_activity(

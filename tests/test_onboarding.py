@@ -98,6 +98,20 @@ def test_onboard_wizard_not_available_in_json_mode(capsys) -> None:
     assert payload["error"]["code"] == "onboard_wizard_unsupported"
 
 
+def test_onboard_wizard_respects_no_input(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(cli_main, "is_interactive", lambda: True)
+
+    def _unexpected_input(*_args, **_kwargs):
+        raise AssertionError("wizard should not prompt with --no-input")
+
+    monkeypatch.setattr("builtins.input", _unexpected_input)
+
+    rc = cli_main.main(["--no-input", "onboard", "wizard"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "Interactive wizard is disabled by --no-input" in captured.err
+
+
 def test_onboard_wizard_accepts_existing_key(tmp_path, monkeypatch) -> None:
     _isolate_config(tmp_path, monkeypatch)
     monkeypatch.setattr(cli_main, "is_interactive", lambda: True)
