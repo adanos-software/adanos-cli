@@ -257,3 +257,23 @@ def test_network_errors_are_user_friendly() -> None:
     assert "Cannot reach API base URL http://127.0.0.1:9" in message
     assert "proxy" in (hint or "")
     assert status_code is None
+
+
+def test_network_error_without_request_uses_fallback() -> None:
+    exc = httpx.ConnectError("[Errno 61] Connection refused")
+
+    code, message, hint, status_code = cli_main._classify_runtime_error(exc)
+
+    assert code == "network_error"
+    assert message == "Cannot reach configured API base URL."
+    assert "proxy" in (hint or "")
+    assert status_code is None
+
+
+def test_no_color_does_not_persist_in_process_env(monkeypatch, capsys) -> None:
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    rc = cli_main.main(["--no-color", "capabilities"])
+    assert rc == 0
+    capsys.readouterr()
+    assert "NO_COLOR" not in os.environ

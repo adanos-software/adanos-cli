@@ -27,8 +27,8 @@ def read_api_key_arg(args: Namespace) -> str:
     api_key_file = str(getattr(args, "api_key_file", "") or "").strip()
     if api_key_file:
         try:
-            value = Path(api_key_file).read_text(encoding="utf-8").strip()
-        except OSError as exc:
+            value = Path(api_key_file).expanduser().read_text(encoding="utf-8").strip()
+        except (OSError, UnicodeDecodeError) as exc:
             raise CliUsageError(f"Could not read API key file: {exc}") from exc
         if not value:
             raise CliUsageError("API key file is empty.")

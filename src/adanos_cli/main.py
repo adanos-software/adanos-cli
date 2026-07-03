@@ -52,6 +52,7 @@ from .summaries import (
     format_trending_report,
     format_crypto_compare_report,
     format_crypto_report,
+    format_polymarket_stock_details,
     format_search_fallback_report,
     format_stock_report,
 )
@@ -723,7 +724,7 @@ def _capabilities_payload(base_url: str, *, has_api_key: bool) -> dict[str, Any]
         },
         "json_contract": {
             "required": ["kind", "command"],
-            "optional": ["subcommand", "data", "payload"],
+            "optional": ["subcommand", "data"],
             "endpoint_result": ["platform", "route", "endpoint", "path", "data"],
         },
         "config_paths": {
@@ -819,7 +820,7 @@ def _format_compact_rows(rows: list[dict[str, Any]], *, limit: int = 12) -> list
         status = _first_present(row, ("trend", "market_status", "status", "active"))
         out.append(
             f"{str(rank)[:4]:<4}  {str(asset)[:11]:<11}  {fmt_num(buzz):<7}  "
-            f"{fmt_num(sentiment):<9}  {fmt_num(volume):<7}  {str(status or 'n/a')[:18]}"
+            f"{fmt_num(sentiment):<9}  {fmt_num(volume):<7}  {str('n/a' if status is None else status)[:18]}"
         )
     if len(rows) > limit:
         out.append(f"- {len(rows) - limit} more rows hidden; use --json for the full payload")
@@ -849,83 +850,39 @@ def _format_dict_summary(data: dict[str, Any]) -> list[str]:
     return lines or ["- no scalar summary fields returned"]
 
 
-def _format_polymarket_stock_details(data: dict[str, Any]) -> list[str]:
-    lines: list[str] = []
-    pulse = data.get("pulse")
-    if isinstance(pulse, dict):
-        lines.append(
-            "- Pulse: "
-            f"mood={pulse.get('mood', 'n/a')}, confidence={fmt_num(pulse.get('confidence'))}, "
-            f"thin_data={pulse.get('thin_data', 'n/a')}"
-        )
-        why_value = pulse.get("why")
-        if isinstance(why_value, list):
-            why = "; ".join(str(item) for item in why_value if str(item).strip())
-        else:
-            why = str(why_value or "").strip()
-        if why:
-            lines.append(f"  why: {why}")
-        warnings = pulse.get("warnings")
-        if isinstance(warnings, list) and warnings:
-            lines.append("  warnings: " + "; ".join(str(item) for item in warnings[:3]))
-        evidence = pulse.get("evidence")
-        if isinstance(evidence, list) and evidence:
-            lines.append(f"  evidence: {len(evidence)} items")
-
-    market_count = data.get("market_count")
-    current_market_count = data.get("current_market_count")
-    if market_count is not None or current_market_count is not None:
-        lines.append(
-            "- Market breadth: "
-            f"period={fmt_num(market_count)}, current_active={fmt_num(current_market_count)}"
-        )
-
-    daily_trend = data.get("daily_trend")
-    if isinstance(daily_trend, list) and daily_trend:
-        latest = next((row for row in reversed(daily_trend) if isinstance(row, dict)), None)
-        if latest:
-            lines.append(
-                "- Latest daily direction: "
-                f"bullish_pct={fmt_num(latest.get('bullish_pct'))}, "
-                f"bearish_pct={fmt_num(latest.get('bearish_pct'))}"
-            )
-
-    top_mentions = data.get("top_mentions")
-    if isinstance(top_mentions, list) and top_mentions:
-        lines.append("- Representative market evidence:")
-        for row in [item for item in top_mentions if isinstance(item, dict)][:5]:
-            title = _first_present(row, ("question", "market_title", "title", "condition_id")) or "market"
-            lines.append(
-                "  "
-                f"{str(title)[:72]} | status={row.get('market_status', row.get('active', 'n/a'))} "
-                f"| sentiment={fmt_num(row.get('sentiment_score'))}"
-            )
-    return lines
-
-
 def _format_endpoint_human_result(payload: dict[str, Any]) -> str:
     endpoint_id = str(payload.get("endpoint") or "endpoint")
     lines = [
         f"Endpoint: {endpoint_id}",
-        f"Path: {payload.get('path', ENDPOINTS.get(endpoint_id).path if endpoint_id in ENDPOINTS else 'n/a')}",
+        f"Path: {payload.get('path', 'n/a')}",
     ]
     if payload.get("result_count") is not None:
         lines.append(f"Rows: {payload['result_count']}")
 
     data = payload.get("data")
     if isinstance(data, dict) and endpoint_id == "polymarket-stocks.stock":
-        lines.extend(_format_polymarket_stock_details(data))
-        lines.extend(_format_dict_summary(data))
-        lines.append("Use --json or --output json for the full raw payload.")
-        return "\n".join(lines)
-
-    rows = _extract_endpoint_rows(data)
-    if rows:
-        lines.extend(_format_compact_rows(rows))
-    elif isinstance(data, dict):
+        lines.extend(
+            format_polymarket_stock_details(
+                data,
+                line_prefix="- ",
+                detail_prefix="  ",
+                pulse_label="Pulse",
+                max_mentions=5,
+                title_width=72,
+                market_breadth_label="Market breadth",
+                latest_daily_label="Latest daily direction",
+                evidence_heading="Representative market evidence",
+            )
+        )
         lines.extend(_format_dict_summary(data))
     else:
-        lines.append(f"- value: {fmt_num(data)}")
+        rows = _extract_endpoint_rows(data)
+        if rows:
+            lines.extend(_format_compact_rows(rows))
+        elif isinstance(data, dict):
+            lines.extend(_format_dict_summary(data))
+        else:
+            lines.append(f"- value: {fmt_num(data)}")
 
     lines.append("Use --json or --output json for the full raw payload.")
     return "\n".join(lines)
@@ -1111,15 +1068,19 @@ def _classify_runtime_error(exc: Exception) -> tuple[str, str, str | None, int |
         return ("api_error", message, None, status_code)
 
     if isinstance(exc, httpx.TransportError) or "connection refused" in lowered or "connecterror" in lowered:
-        request = getattr(exc, "request", None)
+        try:
+            request = exc.request
+        except Exception:
+            request = None
         url = getattr(request, "url", None)
         if url is not None:
             base_url = f"{url.scheme}://{url.host}" + (f":{url.port}" if url.port else "")
+            network_message = f"Cannot reach API base URL {base_url}."
         else:
-            base_url = "configured API base URL"
+            network_message = "Cannot reach configured API base URL."
         return (
             "network_error",
-            f"Cannot reach API base URL {base_url}.",
+            network_message,
             "Check --base-url, network connectivity, VPN/proxy, or API availability.",
             status_code,
         )
@@ -3382,7 +3343,8 @@ def _run_export(client: Any, args: Namespace) -> None:
         asset=getattr(args, "asset", "stocks"),
     )
     if args.format == "json":
-        rendered = json.dumps(to_plain(report), indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+        export_payload = with_json_metadata(report, command="export", subcommand=args.kind)
+        rendered = json.dumps(to_plain(export_payload), indent=2, ensure_ascii=False, sort_keys=True) + "\n"
     elif args.format == "md":
         rendered = _format_named_report(args.kind, report) + "\n"
     else:
@@ -3710,8 +3672,6 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else 1
         return code
-    if bool(getattr(args, "no_color", False)):
-        os.environ["NO_COLOR"] = "1"
     setattr(args, "json", should_output_json(args, argv_supplied=argv_supplied))
 
     if args.version:
@@ -3934,7 +3894,7 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
                 not search_term
                 or search_term in spec.endpoint_id.lower()
                 or search_term in spec.path.lower()
-                or search_term in spec.description.lower()
+                or search_term in (spec.description or "").lower()
             )
         ]
         if args.json:
@@ -4049,7 +4009,7 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
             hint=hint,
             status_code=status_code,
         )
-        return 1
+        return 2 if code == "auth_failed" else 1
     finally:
         if client is not None:
             try:
@@ -4062,7 +4022,19 @@ def main(argv: list[str] | None = None, *, invocation_source: str = "direct") ->
     argv_supplied = argv is not None
     raw_argv = list(argv) if argv is not None else sys.argv[1:]
     started = time.monotonic()
-    exit_code = _main_impl(raw_argv, argv_supplied=argv_supplied)
+    no_color_requested = "--no-color" in raw_argv
+    had_no_color = "NO_COLOR" in os.environ
+    previous_no_color = os.environ.get("NO_COLOR")
+    if no_color_requested:
+        os.environ["NO_COLOR"] = "1"
+    try:
+        exit_code = _main_impl(raw_argv, argv_supplied=argv_supplied)
+    finally:
+        if no_color_requested:
+            if had_no_color:
+                os.environ["NO_COLOR"] = previous_no_color or ""
+            else:
+                os.environ.pop("NO_COLOR", None)
     if _should_record_activity(raw_argv):
         try:
             append_activity(

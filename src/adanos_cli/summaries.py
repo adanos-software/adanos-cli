@@ -492,18 +492,24 @@ def _format_source(name: str, payload: dict[str, Any], *, mentions_key: str, sen
     return f"- {name}: attention/buzz={buzz}, trend={trend}, volume={mentions}, sentiment_score={sentiment}"
 
 
-def _format_polymarket_stock_details(payload: dict[str, Any]) -> list[str]:
-    if not payload.get("ok"):
-        return []
-    data = payload.get("data")
-    if not isinstance(data, dict):
-        return []
-
+def format_polymarket_stock_details(
+    data: dict[str, Any],
+    *,
+    line_prefix: str,
+    detail_prefix: str,
+    pulse_label: str,
+    pulse_detail_label: str | None = None,
+    max_mentions: int,
+    title_width: int,
+    market_breadth_label: str = "market breadth",
+    latest_daily_label: str = "latest daily direction",
+    evidence_heading: str = "representative market evidence",
+) -> list[str]:
     lines: list[str] = []
     pulse = data.get("pulse")
     if isinstance(pulse, dict):
         lines.append(
-            "  pulse: "
+            f"{line_prefix}{pulse_label}: "
             f"mood={pulse.get('mood', 'n/a')}, confidence={fmt_num(pulse.get('confidence'))}, "
             f"thin_data={pulse.get('thin_data', 'n/a')}"
         )
@@ -513,17 +519,20 @@ def _format_polymarket_stock_details(payload: dict[str, Any]) -> list[str]:
         else:
             why = str(why_value or "").strip()
         if why:
-            lines.append(f"  pulse why: {why}")
+            why_label = f"{pulse_detail_label} why" if pulse_detail_label else "why"
+            lines.append(f"{detail_prefix}{why_label}: {why}")
         warnings = pulse.get("warnings")
         if isinstance(warnings, list) and warnings:
-            lines.append("  pulse warnings: " + "; ".join(str(item) for item in warnings[:3]))
+            warnings_label = f"{pulse_detail_label} warnings" if pulse_detail_label else "warnings"
+            lines.append(f"{detail_prefix}{warnings_label}: " + "; ".join(str(item) for item in warnings[:3]))
         evidence = pulse.get("evidence")
         if isinstance(evidence, list) and evidence:
-            lines.append(f"  pulse evidence: {len(evidence)} items")
+            evidence_label = f"{pulse_detail_label} evidence" if pulse_detail_label else "evidence"
+            lines.append(f"{detail_prefix}{evidence_label}: {len(evidence)} items")
 
     if data.get("market_count") is not None or data.get("current_market_count") is not None:
         lines.append(
-            "  market breadth: "
+            f"{line_prefix}{market_breadth_label}: "
             f"period={fmt_num(data.get('market_count'))}, current_active={fmt_num(data.get('current_market_count'))}"
         )
 
@@ -532,17 +541,17 @@ def _format_polymarket_stock_details(payload: dict[str, Any]) -> list[str]:
         latest = next((row for row in reversed(daily_trend) if isinstance(row, dict)), None)
         if latest:
             lines.append(
-                "  latest daily direction: "
+                f"{line_prefix}{latest_daily_label}: "
                 f"bullish_pct={fmt_num(latest.get('bullish_pct'))}, bearish_pct={fmt_num(latest.get('bearish_pct'))}"
             )
 
     top_mentions = data.get("top_mentions")
     if isinstance(top_mentions, list) and top_mentions:
-        lines.append("  representative market evidence:")
-        for row in [item for item in top_mentions if isinstance(item, dict)][:3]:
+        lines.append(f"{line_prefix}{evidence_heading}:")
+        for row in [item for item in top_mentions if isinstance(item, dict)][:max_mentions]:
             title = str(row.get("question") or row.get("market_title") or row.get("title") or row.get("condition_id") or "market")
             status = row.get("market_status", row.get("active", "n/a"))
-            lines.append(f"    {title[:70]} | status={status} | sentiment={fmt_num(row.get('sentiment_score'))}")
+            lines.append(f"{detail_prefix}{title[:title_width]} | status={status} | sentiment={fmt_num(row.get('sentiment_score'))}")
 
     return lines
 
@@ -555,7 +564,19 @@ def format_stock_report(report: dict[str, Any]) -> str:
         _format_source("X/Twitter Stocks", report["x"], mentions_key="mentions"),
         _format_source("Polymarket Stocks", report["polymarket"], mentions_key="trade_count"),
     ]
-    lines.extend(_format_polymarket_stock_details(report["polymarket"]))
+    polymarket_payload = report["polymarket"]
+    if polymarket_payload.get("ok") and isinstance(polymarket_payload.get("data"), dict):
+        lines.extend(
+            format_polymarket_stock_details(
+                polymarket_payload["data"],
+                line_prefix="  ",
+                detail_prefix="    ",
+                pulse_label="pulse",
+                pulse_detail_label="pulse",
+                max_mentions=3,
+                title_width=70,
+            )
+        )
 
     for key, label in (("reddit_explain", "Reddit Explain"), ("x_explain", "X/Twitter Explain")):
         explain = report.get(key, {})

@@ -152,6 +152,37 @@ def test_config_set_accepts_api_key_file(tmp_path, monkeypatch, capsys) -> None:
     assert payload["profile"] == "file"
 
 
+def test_config_set_api_key_file_expands_home(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    home = tmp_path / "home"
+    home.mkdir()
+    key_path = home / "key.txt"
+    key_path.write_text("adanos_key_homeabcdefghijklmnopqrstuvwxyz\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+
+    rc = cli_main.main(["config", "set", "--api-key-file", "~/key.txt", "--profile", "home", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["kind"] == "config_set"
+
+    rc = cli_main.main(["auth", "current", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["profile"] == "home"
+
+
+def test_login_api_key_file_reports_binary_file_cleanly(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    key_path = tmp_path / "key.bin"
+    key_path.write_bytes(b"\xff\xfe\x00")
+
+    rc = cli_main.main(["login", "--api-key-file", str(key_path), "--json"])
+    payload = json.loads(capsys.readouterr().err)
+    assert rc == 2
+    assert payload["error"]["code"] == "auth_error"
+    assert payload["error"]["message"].startswith("Could not read API key file:")
+
+
 def test_login_no_input_requires_explicit_secret_source(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
 

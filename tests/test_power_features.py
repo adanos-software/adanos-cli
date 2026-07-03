@@ -6,6 +6,7 @@ import json
 import sys
 from pathlib import Path
 
+import httpx
 
 import adanos_cli.config as cli_config
 import adanos_cli.main as cli_main
@@ -189,6 +190,19 @@ class _FakeClient:
         return None
 
 
+class _UnauthorizedReddit:
+    def trending(self, *, days: int = 1, limit: int = 20, offset: int = 0, type=None):
+        request = httpx.Request("GET", "https://api.adanos.org/reddit/stocks/v1/trending")
+        response = httpx.Response(401, json={"detail": "Invalid API key"}, request=request)
+        raise httpx.HTTPStatusError("Unauthorized", request=request, response=response)
+
+
+class _UnauthorizedClient(_FakeClient):
+    def __init__(self, api_key: str, base_url: str):
+        super().__init__(api_key, base_url)
+        self.reddit = _UnauthorizedReddit()
+
+
 class _BrokenNS:
     def stock(self, ticker: str, *, days: int = 7):
         raise ConnectionRefusedError("[Errno 61] Connection refused")
@@ -302,6 +316,18 @@ def test_search_command_accepts_limit(tmp_path, monkeypatch, capsys) -> None:
     assert payload["endpoint"] == "news-stocks.search"
     assert payload["data"]["query"] == "Tesla"
     assert payload["result_count"] == 1
+
+
+def test_data_command_401_exits_as_auth_error(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _UnauthorizedClient)
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "trending", "--platform", "reddit-stocks", "--json"])
+    payload = json.loads(capsys.readouterr().err)
+
+    assert rc == 2
+    assert payload["error"]["code"] == "auth_failed"
+    assert payload["error"]["status_code"] == 401
 
 
 def test_crypto_report_search_uses_api_managed_window() -> None:
@@ -442,3 +468,21 @@ def test_watch_and_export_workflows(tmp_path, monkeypatch, capsys) -> None:
     assert rc == 0
     out = capsys.readouterr().out
     assert out.startswith("source,label,ok,found,buzz_score,sentiment,volume,trend")
+
+    rc = cli_main.main(
+        [
+            "--api-key",
+            "adanos_key_test",
+            "export",
+            "MSFT",
+            "--kind",
+            "stock",
+            "--format",
+            "json",
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["kind"] == "stock_report"
+    assert payload["command"] == "export"
+    assert payload["subcommand"] == "stock"

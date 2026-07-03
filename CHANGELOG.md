@@ -15,7 +15,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 - Synced CLI human reports with Adanos Market Sentiment API `1.46.0`, including Polymarket `pulse`, representative `top_mentions` evidence, `market_status`, `daily_trend[].bullish_pct` / `bearish_pct`, and clearer `market_count` vs `current_market_count` breadth labels.
-- Human output for `trending`, `search`, `stats`, and `endpoint call` now uses compact summaries/tables. Use `--json` or `--output json` for raw payloads.
+- Human output for endpoint-backed commands such as `trending`, `search`, `compare`, `stats`, `health`, and `endpoint call` now uses compact summaries/tables. Use `--json` or `--output json` for raw payloads.
 - JSON report outputs now consistently include `kind` and `command`, with `subcommand` where relevant.
 - Help output for `trending`, `endpoint call`, `watchlist`, `export`, and `scan` now starts from concrete examples.
 - `capabilities` now documents output modes, secret input methods, config paths, exit codes, and the JSON contract.

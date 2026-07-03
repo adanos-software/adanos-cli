@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from argparse import Namespace
+from dataclasses import dataclass
 import json
 import sys
 from pathlib import Path
@@ -114,6 +115,23 @@ def test_endpoint_list_filters_and_groups_human_output(capsys) -> None:
     assert "reddit-stocks" not in out
 
 
+def test_endpoint_list_search_handles_missing_description(monkeypatch, capsys) -> None:
+    @dataclass(frozen=True)
+    class _Spec:
+        endpoint_id: str = "custom.health"
+        path: str = "/custom/health"
+        description: str | None = None
+        required_params: tuple[str, ...] = ()
+        optional_params: tuple[str, ...] = ()
+
+    monkeypatch.setattr(cli_main, "list_endpoints", lambda: [_Spec()])
+
+    rc = cli_main.main(["endpoint", "list", "--search", "custom"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "custom.health" in out
+
+
 def test_endpoint_result_wrapper_includes_stable_metadata(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         cli_main,
@@ -159,6 +177,25 @@ def test_endpoint_human_result_uses_table_not_raw_json(monkeypatch, capsys) -> N
     assert "MSFT" in out
     assert '"ticker"' not in out
     assert "Use --json or --output json" in out
+
+
+def test_endpoint_human_table_preserves_false_status(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        cli_main,
+        "invoke_endpoint",
+        lambda client, endpoint_id, args: [{"ticker": "MSFT", "active": False}],
+    )
+
+    cli_main._call_and_emit_endpoint(
+        object(),
+        "polymarket-stocks.trending",
+        Namespace(days=1, limit=1),
+        json_mode=False,
+        command="trending",
+    )
+
+    out = capsys.readouterr().out
+    assert "False" in out
 
 
 def test_polymarket_stock_endpoint_human_formats_pulse_and_evidence(monkeypatch, capsys) -> None:
