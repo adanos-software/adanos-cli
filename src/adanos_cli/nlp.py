@@ -132,6 +132,11 @@ def _is_common_crypto_symbol(symbol: str) -> bool:
     return symbol.upper().replace("$", "") in _COMMON_CRYPTO_SYMBOLS
 
 
+def is_common_crypto_symbol(symbol: str) -> bool:
+    """Return whether a symbol is unambiguously recognized as common crypto."""
+    return _is_common_crypto_symbol(symbol)
+
+
 def _canonical_crypto_symbol(token: str) -> str:
     normalized = token.upper().replace("$", "")
     return _CRYPTO_NAME_TO_SYMBOL.get(normalized, normalized)

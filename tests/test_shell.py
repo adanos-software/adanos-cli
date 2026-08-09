@@ -155,8 +155,9 @@ def test_shell_help_shows_command_catalog(tmp_path, monkeypatch, capsys) -> None
     assert rc == 0
     assert "Guided Help" in out
     assert "/onboard wizard" in out
-    assert "/trending --platform" in out
-    assert "/stats --platform" in out
+    assert "/trending stocks|crypto" in out
+    assert "/compare ASSET ASSET" in out
+    assert "/stats [--platform ...]" in out
     assert "/account" in out
 
 

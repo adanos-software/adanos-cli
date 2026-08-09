@@ -142,6 +142,37 @@ def test_long_option_abbreviations_are_rejected(capsys) -> None:
     assert "unrecognized arguments" in captured.err
 
 
+def test_every_public_top_level_command_has_help(capsys) -> None:
+    for command in cli_main.ROOT_COMMANDS:
+        rc = cli_main.main([command, "--help"])
+        captured = capsys.readouterr()
+        assert rc == 0, command
+        assert captured.err == "", command
+        assert f"usage: adanos {command}" in captured.out, command
+
+
+def test_every_public_nested_command_has_help(capsys) -> None:
+    command_paths = [
+        ("onboard", command) for command in ("guide", "wizard", "register", "redeem", "recover")
+    ]
+    command_paths += [("auth", command) for command in ("login", "logout", "list", "switch", "current")]
+    command_paths += [("config", command) for command in ("set", "show", "clear")]
+    command_paths += [("logs", command) for command in ("path", "tail")]
+    command_paths += [("plugins", command) for command in ("dir", "list")]
+    command_paths += [
+        ("watchlist", command) for command in ("list", "show", "add", "remove", "delete", "report")
+    ]
+    command_paths += [("endpoint", command) for command in ("list", "call")]
+
+    for command_path in command_paths:
+        rc = cli_main.main([*command_path, "--help"])
+        captured = capsys.readouterr()
+        rendered = " ".join(command_path)
+        assert rc == 0, rendered
+        assert captured.err == "", rendered
+        assert f"usage: adanos {rendered}" in captured.out, rendered
+
+
 def test_missing_api_key_emits_json_error_on_stderr(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
     monkeypatch.delenv("ADANOS_API_KEY", raising=False)

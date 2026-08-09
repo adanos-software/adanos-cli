@@ -11,11 +11,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Added a global, order-independent `--json` flag and structured JSON parser errors.
 - Added `--token-stdin` for secure one-time onboarding token input.
 - Added confirmation gates and `--force` for local profile, config, and watchlist deletion.
-- Added multi-ticker natural-language comparisons such as `adanos ask compare NVDA TSLA AAPL`.
+- Added direct multi-asset comparisons such as `adanos compare NVDA TSLA AAPL`; natural-language comparisons remain available through `adanos ask`.
 
 ### Changed
 - Human market output now labels source activity precisely as mentions, trades, or tracked activity instead of the ambiguous `volume` label.
 - The interactive shell now uses a clean wordmark by default and renders the bundled official Adanos mark in compatible iTerm2 sessions.
+- Trader commands now lead with aggregate market behavior: `trending` and `search` no longer require a platform, `stats` defaults to all platforms, and `--platform` remains an optional source-level override.
+- `scan`, watchlist symbols, briefing focus lists, and `compare` now accept natural space-separated asset lists while retaining the legacy flag/comma forms.
+- Search summaries now show representative matching symbols and names instead of counts alone.
 - Consensus output now describes its confidence score as data confidence.
 - Explicit uppercase tickers in natural-language comparisons bypass unnecessary search calls before the four source comparisons.
 - `--version` remains a conventional one-line response unless JSON is explicitly requested.

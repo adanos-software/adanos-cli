@@ -35,7 +35,7 @@ from .config import (
     save_config_file,
 )
 from .endpoints import ENDPOINTS, invoke_endpoint, is_health_endpoint, list_endpoints
-from .nlp import extract_terms, parse_ask_intent
+from .nlp import extract_terms, is_common_crypto_symbol, parse_ask_intent
 from .shell_history import append_history, load_history, most_recent_command
 from .summaries import (
     build_stock_compare_report,
@@ -368,7 +368,7 @@ def _print_shell_help(*, has_api_key: bool) -> None:
         print("  1) Ask directly in plain text:")
         print('     How does TSLA look this week?')
         print("  2) Run a sentiment screen:")
-        print("     /scan --asset stocks --style daytrader")
+        print("     /scan stocks --style daytrader")
         print("  3) Check key plan and monthly credits:")
         print("     /account")
     else:
@@ -401,15 +401,15 @@ def _print_shell_help(*, has_api_key: bool) -> None:
     print("    /crypto SYMBOL or /crypto BTC/ETH")
     print("    /watch core --kind watchlist --refresh 60")
     print("    /export TSLA --kind consensus --format md")
-    print("    /scan --asset stocks|crypto --style starter|daytrader|swing|investor")
+    print("    /scan stocks|crypto --style starter|daytrader|swing|investor")
     print("    /briefing --profile starter|daytrader|swing|investor|crypto|research|portfolio")
     print("")
     print("  Lists + Platform Queries")
     print("    /watchlist list|show|add|remove|report|delete")
-    print("    /trending --platform ... --dimension ...")
-    print("    /search --platform ... QUERY")
-    print("    /compare --platform ... ASSETS_CSV")
-    print("    /stats --platform ...")
+    print("    /trending stocks|crypto [--platform ...]")
+    print("    /search QUERY [--platform ...]")
+    print("    /compare ASSET ASSET [...] [--platform ...]")
+    print("    /stats [--platform ...]")
     print("    /health --platform all|news-stocks|reddit-stocks|reddit-crypto|x-stocks|polymarket-stocks")
     print("")
     print("  Power / API Coverage")
@@ -434,7 +434,8 @@ def _print_shell_examples() -> None:
     print('  compare BTC and ETH')
     print('  How does TSLA look?')
     print("  /crypto BTC/ETH")
-    print("  /trending --platform reddit-stocks --limit 5")
+    print("  /compare NVDA TSLA AAPL")
+    print("  /trending stocks --limit 5")
     print("  /endpoint list --platform polymarket-stocks --search stock")
     print("  /endpoint call polymarket-stocks.stock --ticker TSLA")
 
@@ -2125,6 +2126,27 @@ def _period_from_args(args: Namespace) -> dict[str, Any]:
     }
 
 
+def _asset_values(raw: str | list[str] | tuple[str, ...] | None) -> list[str]:
+    if raw is None:
+        return []
+    values = [raw] if isinstance(raw, str) else list(raw)
+    return csv_to_list(",".join(str(value) for value in values))
+
+
+def _scan_asset(args: Namespace) -> str:
+    positional = getattr(args, "asset_arg", None)
+    flagged = getattr(args, "asset", None)
+    if positional and flagged and positional != flagged:
+        raise CliUsageError(f"Conflicting asset types: {positional} and {flagged}")
+    return str(flagged or positional or "stocks")
+
+
+def _compare_asset_type(assets: list[str], requested: str) -> str:
+    if requested != "auto":
+        return requested
+    return "crypto" if assets and all(is_common_crypto_symbol(asset) for asset in assets) else "stocks"
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = AdanosArgumentParser(
         prog="adanos",
@@ -2358,11 +2380,13 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawTextHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  adanos scan --asset stocks --style daytrader --top 10\n"
-            "  adanos scan --asset crypto --min-buzz 60 --min-volume 50\n"
+            "  adanos scan stocks --style daytrader --top 10\n"
+            "  adanos scan crypto --min-buzz 60 --min-volume 50\n"
+            "  adanos scan --asset stocks  # backwards-compatible form\n"
         ),
     )
-    p_scan.add_argument("--asset", choices=["stocks", "crypto"], required=True)
+    p_scan.add_argument("asset_arg", nargs="?", choices=["stocks", "crypto"], help="Market to scan (default: stocks)")
+    p_scan.add_argument("--asset", choices=["stocks", "crypto"], help="Market to scan (legacy flag form)")
     p_scan.add_argument("--style", choices=["starter", "daytrader", "swing", "investor"], help="Apply preset filters for your trading style")
     _add_period_args(p_scan, default_days=7)
     p_scan.add_argument("--limit", type=int, default=25, help="Source fetch limit per platform")
@@ -2379,8 +2403,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_briefing.add_argument("--profile", choices=["starter", "daytrader", "swing", "investor", "crypto", "research", "portfolio"], default="starter")
     _add_period_args(p_briefing, default_days=7)
     p_briefing.add_argument("--limit", type=int, default=10)
-    p_briefing.add_argument("--stocks", help="Optional focus watchlist tickers (comma-separated)")
-    p_briefing.add_argument("--crypto", help="Optional focus crypto symbols (comma-separated)")
+    p_briefing.add_argument("--stocks", nargs="+", help="Optional focus stock tickers (spaces or commas)")
+    p_briefing.add_argument("--crypto", nargs="+", help="Optional focus crypto symbols (spaces or commas)")
     p_briefing.add_argument("--from-watchlist", help="Merge symbols from local watchlist into focus sets")
     p_briefing.add_argument("--json", action="store_true")
     p_briefing.set_defaults(_handler="briefing")
@@ -2409,14 +2433,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_wl_add = wl_subs.add_parser("add", help="Add symbols to watchlist")
     p_wl_add.add_argument("name")
     p_wl_add.add_argument("--asset", choices=["stocks", "crypto"], required=True)
-    p_wl_add.add_argument("--symbols", required=True, help="Comma-separated symbols")
+    p_wl_add.add_argument("--symbols", nargs="+", required=True, help="Symbols separated by spaces or commas")
     p_wl_add.add_argument("--json", action="store_true")
     p_wl_add.set_defaults(_handler="watchlist_add")
 
     p_wl_remove = wl_subs.add_parser("remove", help="Remove symbols from watchlist")
     p_wl_remove.add_argument("name")
     p_wl_remove.add_argument("--asset", choices=["stocks", "crypto"], required=True)
-    p_wl_remove.add_argument("--symbols", required=True, help="Comma-separated symbols")
+    p_wl_remove.add_argument("--symbols", nargs="+", required=True, help="Symbols separated by spaces or commas")
     p_wl_remove.add_argument("--json", action="store_true")
     p_wl_remove.set_defaults(_handler="watchlist_remove")
 
@@ -2481,19 +2505,34 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ep_call.add_argument("--json", action="store_true")
     p_ep_call.set_defaults(_handler="endpoint_call")
 
-    p_stock = subs.add_parser("stock", help="Comprehensive stock report across News, Reddit, X, and Polymarket")
+    p_stock = subs.add_parser(
+        "stock",
+        help="Comprehensive stock report across News, Reddit, X, and Polymarket",
+        epilog="Example:\n  adanos stock TSLA --days 7",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     p_stock.add_argument("ticker")
     _add_period_args(p_stock, default_days=7)
     p_stock.add_argument("--json", action="store_true")
     p_stock.set_defaults(_handler="stock_report")
 
-    p_consensus = subs.add_parser("consensus", help="Cross-platform consensus report for a stock ticker")
+    p_consensus = subs.add_parser(
+        "consensus",
+        help="Cross-platform consensus report for a stock ticker",
+        epilog="Example:\n  adanos consensus NVDA --days 7",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     p_consensus.add_argument("ticker")
     _add_period_args(p_consensus, default_days=7)
     p_consensus.add_argument("--json", action="store_true")
     p_consensus.set_defaults(_handler="consensus_report")
 
-    p_explain = subs.add_parser("explain", help="Narrative stock explanation tuned to a reader profile")
+    p_explain = subs.add_parser(
+        "explain",
+        help="Narrative stock explanation tuned to a reader profile",
+        epilog="Example:\n  adanos explain AAPL --profile investor",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     p_explain.add_argument("ticker")
     _add_period_args(p_explain, default_days=7)
     p_explain.add_argument(
@@ -2523,13 +2562,23 @@ def _build_parser() -> argparse.ArgumentParser:
     p_export.add_argument("--json", action="store_true")
     p_export.set_defaults(_handler="export")
 
-    p_crypto = subs.add_parser("crypto", help="Comprehensive crypto report or pair comparison")
+    p_crypto = subs.add_parser(
+        "crypto",
+        help="Comprehensive crypto report or pair comparison",
+        epilog="Examples:\n  adanos crypto BTC\n  adanos crypto BTC/ETH",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     p_crypto.add_argument("symbol_or_pair", help="Single symbol (BTC) or pair (BTC/ETH)")
     _add_period_args(p_crypto, default_days=7)
     p_crypto.add_argument("--json", action="store_true")
     p_crypto.set_defaults(_handler="crypto_report")
 
-    p_ask = subs.add_parser("ask", help="Natural-language assistant mode")
+    p_ask = subs.add_parser(
+        "ask",
+        help="Natural-language assistant mode",
+        epilog='Example:\n  adanos ask "Why is NVDA more bullish than TSLA?"',
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     p_ask.add_argument("text", nargs="+")
     _add_period_args(p_ask, default_days=7)
     p_ask.add_argument("--json", action="store_true")
@@ -2541,12 +2590,15 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawTextHelpFormatter,
         epilog=(
             "Examples:\n"
+            "  adanos trending stocks --limit 5\n"
+            "  adanos trending crypto --limit 10\n"
             "  adanos trending --platform reddit-stocks --limit 5\n"
             "  adanos trending --platform reddit-crypto --dimension tokens --limit 10\n"
             "  adanos trending --platform polymarket-stocks --dimension sectors --from 2026-06-01 --to 2026-06-07\n"
         ),
     )
-    p_trending.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], required=True)
+    p_trending.add_argument("asset", nargs="?", choices=["stocks", "crypto"], help="Aggregate market (default: stocks)")
+    p_trending.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], help="Limit output to one data source")
     p_trending.add_argument("--dimension", choices=["main", "stocks", "sectors", "countries", "tokens"], default="main")
     _add_period_args(p_trending, default_days=1)
     p_trending.add_argument("--limit", type=int, default=20)
@@ -2556,22 +2608,43 @@ def _build_parser() -> argparse.ArgumentParser:
     p_trending.add_argument("--json", action="store_true")
     p_trending.set_defaults(_handler="trending")
 
-    p_search = subs.add_parser("search", help="Search assets by platform")
-    p_search.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], required=True)
-    p_search.add_argument("query")
+    p_search = subs.add_parser(
+        "search",
+        help="Search assets across all sources or one platform",
+        epilog="Examples:\n  adanos search Tesla\n  adanos search Bitcoin --platform reddit-crypto",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    p_search.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], help="Limit search to one data source")
+    p_search.add_argument("query", nargs="+", help="Search terms; quotes are optional")
     p_search.add_argument("--limit", type=int, default=20)
     p_search.add_argument("--json", action="store_true")
     p_search.set_defaults(_handler="search")
 
-    p_compare = subs.add_parser("compare", help="Compare multiple assets")
-    p_compare.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], required=True)
-    p_compare.add_argument("assets", help="Comma-separated assets")
+    p_compare = subs.add_parser(
+        "compare",
+        help="Compare stocks or crypto across all relevant sources",
+        epilog=(
+            "Examples:\n"
+            "  adanos compare NVDA TSLA AAPL\n"
+            "  adanos compare BTC ETH\n"
+            "  adanos compare NVDA TSLA --platform reddit-stocks\n"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    p_compare.add_argument("assets", nargs="+", help="Assets separated by spaces or commas")
+    p_compare.add_argument("--asset", choices=["auto", "stocks", "crypto"], default="auto", help="Asset type (default: infer common crypto, otherwise stocks)")
+    p_compare.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], help="Limit comparison to one data source")
     _add_period_args(p_compare, default_days=7)
     p_compare.add_argument("--json", action="store_true")
     p_compare.set_defaults(_handler="compare")
 
-    p_stats = subs.add_parser("stats", help="Get stats endpoint by platform")
-    p_stats.add_argument("--platform", choices=["news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], required=True)
+    p_stats = subs.add_parser(
+        "stats",
+        help="Show statistics for every platform or one data source",
+        epilog="Examples:\n  adanos stats\n  adanos stats --platform reddit-stocks",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    p_stats.add_argument("--platform", choices=["all", "news-stocks", "reddit-stocks", "reddit-crypto", "x-stocks", "polymarket-stocks"], default="all")
     p_stats.add_argument("--json", action="store_true")
     p_stats.set_defaults(_handler="stats")
 
@@ -2690,6 +2763,26 @@ def _run_health(client: Any, args: Namespace) -> None:
 
 
 def _run_trending(client: Any, args: Namespace) -> None:
+    if args.platform is None:
+        if args.dimension != "main" or args.offset != 0 or args.type or args.source:
+            raise CliUsageError("--dimension, --offset, --type, and --source require --platform")
+        report = build_trending_report(
+            client,
+            asset=args.asset or "stocks",
+            **_period_from_args(args),
+            limit=args.limit,
+        )
+        if args.json:
+            _emit_json_report(report, command="trending")
+        else:
+            print(format_trending_report(report))
+        return
+
+    platform_asset = "crypto" if args.platform == "reddit-crypto" else "stocks"
+    requested_asset = getattr(args, "asset", None)
+    if requested_asset and requested_asset != platform_asset:
+        raise CliUsageError(f"Asset '{requested_asset}' conflicts with --platform {args.platform}")
+
     mapping = {
         ("news-stocks", "main"): "news-stocks.trending",
         ("news-stocks", "stocks"): "news-stocks.trending",
@@ -2717,23 +2810,96 @@ def _run_trending(client: Any, args: Namespace) -> None:
 
 
 def _run_search(client: Any, args: Namespace) -> None:
+    query = " ".join(args.query).strip()
+    if args.platform is None:
+        report = build_search_fallback_report(client, query, limit=args.limit)
+        report["kind"] = "search_report"
+        if args.json:
+            _emit_json_report(report, command="search")
+        else:
+            print(format_search_fallback_report(report))
+        return
+
     endpoint_id = f"{args.platform}.search"
     call_args = Namespace(**vars(args))
-    call_args.q = args.query
+    call_args.q = query
     _call_and_emit_endpoint(client, endpoint_id, call_args, json_mode=args.json, command="search")
 
 
 def _run_compare(client: Any, args: Namespace) -> None:
+    assets = _asset_values(args.assets)
+    if len(assets) < 2:
+        raise CliUsageError("Compare requires at least two assets")
+    if len(assets) > 10:
+        raise CliUsageError("Compare accepts at most 10 assets")
+
+    asset_type = _compare_asset_type(assets, args.asset)
+    if args.platform is None:
+        if asset_type == "crypto":
+            report = build_crypto_compare_report(client, assets, **_period_from_args(args))
+            formatter = format_crypto_compare_report
+        else:
+            report = build_stock_compare_report(client, assets, **_period_from_args(args))
+            formatter = format_stock_compare_report
+        if args.json:
+            _emit_json_report(report, command="compare", subcommand=asset_type)
+        else:
+            print(formatter(report))
+        return
+
+    platform_asset_type = "crypto" if args.platform == "reddit-crypto" else "stocks"
+    if args.asset != "auto" and asset_type != platform_asset_type:
+        raise CliUsageError(f"--asset {args.asset} conflicts with --platform {args.platform}")
+
     endpoint_id = f"{args.platform}.compare"
     call_args = Namespace(**vars(args))
     if args.platform == "reddit-crypto":
-        call_args.symbols = args.assets
+        call_args.symbols = ",".join(assets)
     else:
-        call_args.tickers = args.assets
+        call_args.tickers = ",".join(assets)
     _call_and_emit_endpoint(client, endpoint_id, call_args, json_mode=args.json, command="compare")
 
 
 def _run_stats(client: Any, args: Namespace) -> None:
+    if args.platform == "all":
+        report: dict[str, Any] = {}
+        for endpoint_id in (
+            "news-stocks.stats",
+            "reddit-stocks.stats",
+            "reddit-crypto.stats",
+            "x-stocks.stats",
+            "polymarket-stocks.stats",
+        ):
+            try:
+                report[endpoint_id] = to_plain(invoke_endpoint(client, endpoint_id, args))
+            except Exception as exc:  # pragma: no cover - defensive per-source isolation
+                code, message, _, _ = _classify_runtime_error(exc)
+                if code == "auth_failed":
+                    raise
+                report[endpoint_id] = {"error": message}
+        payload = with_json_metadata(
+            {
+                **report,
+                "stats": report,
+                "platform": "all",
+                "platforms": list(report.keys()),
+            },
+            kind="multi_platform_stats",
+            command="stats",
+        )
+        if args.json:
+            print_json(payload)
+        else:
+            print("Platform statistics")
+            for endpoint_id, item in report.items():
+                print(f"\n{endpoint_id}")
+                if isinstance(item, dict):
+                    for line in _format_dict_summary(item):
+                        print(line)
+                else:
+                    print(f"- value: {fmt_num(item)}")
+        return
+
     endpoint_id = f"{args.platform}.stats"
     _call_and_emit_endpoint(client, endpoint_id, args, json_mode=args.json, command="stats")
 
@@ -2773,6 +2939,7 @@ def _scan_thresholds(args: Namespace) -> dict[str, Any]:
 
 
 def _run_scan(client: Any, args: Namespace) -> None:
+    args.asset = _scan_asset(args)
     thresholds = _scan_thresholds(args)
     if args.asset == "stocks":
         report = build_stock_scan_report(client, **_period_from_args(args), limit=args.limit)
@@ -2822,8 +2989,8 @@ def _run_scan(client: Any, args: Namespace) -> None:
 
 
 def _run_briefing(client: Any, args: Namespace) -> None:
-    stock_focus = csv_to_list(args.stocks) if args.stocks else []
-    crypto_focus = csv_to_list(args.crypto) if args.crypto else []
+    stock_focus = _asset_values(args.stocks)
+    crypto_focus = _asset_values(args.crypto)
     if getattr(args, "from_watchlist", None):
         watchlist = get_watchlist(args.from_watchlist)
         if watchlist is None:
@@ -2896,7 +3063,7 @@ def _handle_watchlist_without_api(args: Namespace) -> int:
         return 0
 
     if args._handler == "watchlist_add":
-        payload = upsert_watchlist_symbols(args.name, args.asset, args.symbols)
+        payload = upsert_watchlist_symbols(args.name, args.asset, ",".join(_asset_values(args.symbols)))
         if args.json:
             print_json(
                 with_json_metadata(
@@ -2914,7 +3081,7 @@ def _handle_watchlist_without_api(args: Namespace) -> int:
         return 0
 
     if args._handler == "watchlist_remove":
-        payload = remove_watchlist_symbols(args.name, args.asset, args.symbols)
+        payload = remove_watchlist_symbols(args.name, args.asset, ",".join(_asset_values(args.symbols)))
         if args.json:
             print_json(
                 with_json_metadata(

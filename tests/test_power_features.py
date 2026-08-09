@@ -10,7 +10,12 @@ import httpx
 
 import adanos_cli.config as cli_config
 import adanos_cli.main as cli_main
-from adanos_cli.summaries import build_crypto_report, build_stock_report
+from adanos_cli.summaries import (
+    build_crypto_report,
+    build_stock_report,
+    format_search_fallback_report,
+    format_trending_report,
+)
 
 
 def _isolate_config(tmp_path: Path, monkeypatch) -> None:
@@ -316,6 +321,185 @@ def test_search_command_accepts_limit(tmp_path, monkeypatch, capsys) -> None:
     assert payload["endpoint"] == "news-stocks.search"
     assert payload["data"]["query"] == "Tesla"
     assert payload["result_count"] == 1
+
+
+def test_trader_commands_use_intuitive_aggregate_defaults(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "compare", "NVDA", "TSLA", "AAPL", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["kind"] == "stock_compare"
+    assert payload["command"] == "compare"
+    assert payload["subcommand"] == "stocks"
+    assert payload["tickers"] == ["NVDA", "TSLA", "AAPL"]
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "compare", "BTC", "ETH", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["kind"] == "crypto_compare"
+    assert payload["subcommand"] == "crypto"
+    assert payload["symbols"] == ["BTC", "ETH"]
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "search", "Tesla", "Inc", "--limit", "1", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["kind"] == "search_report"
+    assert payload["command"] == "search"
+    assert payload["limit"] == 1
+    assert payload["news_stocks"]["data"]["query"] == "Tesla Inc"
+    assert payload["reddit_crypto"]["data"]["query"] == "Tesla Inc"
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "trending", "stocks", "--limit", "1", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["kind"] == "trending_report"
+    assert payload["command"] == "trending"
+    assert payload["asset"] == "stocks"
+    assert len(payload["news"]["data"]) == 1
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "scan", "stocks", "--top", "1", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["kind"] == "stock_scan"
+    assert payload["top"] == 1
+
+    rc = cli_main.main(
+        [
+            "--api-key",
+            "adanos_key_test",
+            "briefing",
+            "--profile",
+            "portfolio",
+            "--stocks",
+            "NVDA",
+            "TSLA",
+            "--crypto",
+            "BTC",
+            "ETH",
+            "--json",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["stock_focus"]["tickers"] == ["NVDA", "TSLA"]
+    assert payload["crypto_focus"]["symbols"] == ["BTC", "ETH"]
+
+
+def test_compare_keeps_platform_specific_legacy_form(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
+
+    rc = cli_main.main(
+        [
+            "--api-key",
+            "adanos_key_test",
+            "compare",
+            "NVDA,TSLA",
+            "--platform",
+            "news-stocks",
+            "--json",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert payload["kind"] == "endpoint_result"
+    assert payload["endpoint"] == "news-stocks.compare"
+    assert [row["ticker"] for row in payload["data"]["stocks"]] == ["NVDA", "TSLA"]
+
+
+def test_market_shortcuts_reject_conflicting_asset_types(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
+
+    rc = cli_main.main(
+        ["--api-key", "adanos_key_test", "trending", "crypto", "--platform", "news-stocks", "--json"]
+    )
+    payload = json.loads(capsys.readouterr().err)
+    assert rc == 2
+    assert payload["error"]["code"] == "usage_error"
+    assert "conflicts" in payload["error"]["message"]
+
+    rc = cli_main.main(
+        ["--api-key", "adanos_key_test", "scan", "crypto", "--asset", "stocks", "--json"]
+    )
+    payload = json.loads(capsys.readouterr().err)
+    assert rc == 2
+    assert payload["error"]["code"] == "usage_error"
+    assert "Conflicting asset types" in payload["error"]["message"]
+
+
+def test_stats_defaults_to_all_platforms(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
+    monkeypatch.setattr(cli_main, "invoke_endpoint", lambda client, endpoint_id, args: {"endpoint": endpoint_id})
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "stats", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert payload["kind"] == "multi_platform_stats"
+    assert payload["command"] == "stats"
+    assert len(payload["platforms"]) == 5
+    assert payload["stats"]["reddit-stocks.stats"]["endpoint"] == "reddit-stocks.stats"
+
+
+def test_stats_all_propagates_authentication_failures(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
+
+    def unauthorized(client, endpoint_id, args):
+        request = httpx.Request("GET", f"https://api.adanos.org/{endpoint_id}")
+        response = httpx.Response(401, json={"detail": "Invalid API key"}, request=request)
+        raise httpx.HTTPStatusError("Unauthorized", request=request, response=response)
+
+    monkeypatch.setattr(cli_main, "invoke_endpoint", unauthorized)
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "stats", "--json"])
+    payload = json.loads(capsys.readouterr().err)
+
+    assert rc == 2
+    assert payload["error"]["code"] == "auth_failed"
+    assert payload["error"]["status_code"] == 401
+
+
+def test_aggregate_text_summaries_show_matches_and_honor_limits() -> None:
+    search = format_search_fallback_report(
+        {
+            "query": "Tesla",
+            "limit": 1,
+            "news_stocks": {
+                "ok": True,
+                "data": {
+                    "results": [
+                        {"ticker": "F", "name": "Ford Motor Company"},
+                        {"ticker": "TSLA", "name": "Tesla Inc"},
+                    ]
+                },
+            },
+        }
+    )
+    assert "F (Ford Motor Company)" in search
+    assert "TSLA" not in search
+
+    trending = format_trending_report(
+        {
+            "asset": "stocks",
+            "days": 1,
+            "limit": 1,
+            "news": {
+                "ok": True,
+                "data": [
+                    {"ticker": "NVDA", "buzz_score": 90},
+                    {"ticker": "TSLA", "buzz_score": 80},
+                ],
+            },
+        }
+    )
+    assert "NVDA(90)" in trending
+    assert "TSLA" not in trending
 
 
 def test_data_command_401_exits_as_auth_error(tmp_path, monkeypatch, capsys) -> None:

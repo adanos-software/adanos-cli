@@ -71,9 +71,12 @@ adanos doctor
 First market checks:
 
 ```bash
+adanos stock TSLA
+adanos compare NVDA TSLA AAPL
+adanos trending stocks --limit 5
 adanos consensus TSLA
 adanos explain TSLA --profile investor
-adanos scan --asset stocks --style daytrader --top 10
+adanos scan stocks --style daytrader --top 10
 ```
 
 Crypto:
@@ -162,6 +165,34 @@ Cross-platform consensus:
 adanos consensus TSLA
 ```
 
+Compare stocks across News, Reddit, X/Twitter, and Polymarket:
+
+```bash
+adanos compare NVDA TSLA AAPL
+```
+
+Common crypto symbols are detected automatically:
+
+```bash
+adanos compare BTC ETH
+```
+
+Search and trending use all relevant sources by default. Add `--platform` only when you want one source:
+
+```bash
+adanos search Tesla
+adanos trending stocks --limit 5
+adanos trending crypto --limit 10
+adanos search Tesla --platform news-stocks
+```
+
+Sentiment screener:
+
+```bash
+adanos scan stocks --style daytrader --top 10
+adanos scan crypto --min-buzz 60 --min-volume 50
+```
+
 Narrative explanation:
 
 ```bash
@@ -171,7 +202,7 @@ adanos explain TSLA --profile investor
 Watchlists:
 
 ```bash
-adanos watchlist add core --asset stocks --symbols TSLA,NVDA,AAPL
+adanos watchlist add core --asset stocks --symbols TSLA NVDA AAPL
 adanos watchlist report core --asset stocks
 adanos watch core --kind watchlist --asset stocks --refresh 60 --iterations 1
 ```

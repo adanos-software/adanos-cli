@@ -199,6 +199,7 @@ def build_trending_report(client: Any, *, asset: str, days: int | None, from_: s
             "kind": "trending_report",
             "asset": "crypto",
             **_period_metadata(days, from_, to, default_days=1),
+            "limit": limit,
             "reddit_crypto": _call_safe(lambda: client.crypto.trending(**period, limit=limit, offset=0)),
         }
 
@@ -206,6 +207,7 @@ def build_trending_report(client: Any, *, asset: str, days: int | None, from_: s
         "kind": "trending_report",
         "asset": "stocks",
         **_period_metadata(days, from_, to, default_days=1),
+        "limit": limit,
         "news": _call_safe(lambda: client.news.trending(**period, limit=limit, offset=0)),
         "reddit": _call_safe(lambda: client.reddit.trending(**period, limit=limit, offset=0)),
         "x": _call_safe(lambda: client.x.trending(**period, limit=limit, offset=0)),
@@ -462,15 +464,16 @@ def build_market_briefing_report(
     return report
 
 
-def build_search_fallback_report(client: Any, query: str) -> dict[str, Any]:
+def build_search_fallback_report(client: Any, query: str, *, limit: int = 10) -> dict[str, Any]:
     return {
         "kind": "search_fallback",
         "query": query,
-        "news_stocks": _call_safe(lambda: client.news.search(query, limit=10)),
-        "reddit_stocks": _call_safe(lambda: client.reddit.search(query, limit=10)),
-        "x_stocks": _call_safe(lambda: client.x.search(query, limit=10)),
-        "polymarket_stocks": _call_safe(lambda: client.polymarket.search(query, limit=10)),
-        "reddit_crypto": _call_safe(lambda: client.crypto.search(query, limit=10)),
+        "limit": limit,
+        "news_stocks": _call_safe(lambda: client.news.search(query, limit=limit)),
+        "reddit_stocks": _call_safe(lambda: client.reddit.search(query, limit=limit)),
+        "x_stocks": _call_safe(lambda: client.x.search(query, limit=limit)),
+        "polymarket_stocks": _call_safe(lambda: client.polymarket.search(query, limit=limit)),
+        "reddit_crypto": _call_safe(lambda: client.crypto.search(query, limit=limit)),
     }
 
 
@@ -687,13 +690,14 @@ def format_trending_report(report: dict[str, Any]) -> str:
 
     asset = report.get("asset", "stocks")
     days = report.get("days", "n/a")
+    limit = max(int(report.get("limit") or 5), 1)
     if asset == "crypto":
         payload = report.get("reddit_crypto", {})
         if not payload.get("ok"):
             return f"Trending crypto ({days}d): unavailable ({payload.get('error', 'request failed')})"
         rows = _extract_rows(payload)
         lines = [f"Trending crypto ({days}d):"]
-        for row in rows[:5]:
+        for row in rows[:limit]:
             lines.append(
                 "- "
                 f"{row.get('symbol', 'n/a')}: buzz={fmt_num(row.get('buzz_score'))}, "
@@ -713,7 +717,7 @@ def format_trending_report(report: dict[str, Any]) -> str:
         if not rows:
             lines.append(f"- {label}: no rows returned")
             continue
-        top = rows[:5]
+        top = rows[:limit]
         joined = ", ".join(
             f"{row.get('ticker', 'n/a')}({fmt_num(row.get('buzz_score'))})" for row in top
         )
@@ -842,7 +846,8 @@ def format_market_briefing_report(report: dict[str, Any]) -> str:
 
 
 def format_search_fallback_report(report: dict[str, Any]) -> str:
-    lines = [f"No clear ticker/symbol intent found. Showing search snapshot for: {report['query']}"]
+    lines = [f"Search across all market sources: {report['query']}"]
+    limit = min(max(int(report.get("limit") or 10), 1), 10)
     for key, label in (
         ("news_stocks", "News Stocks"),
         ("reddit_stocks", "Reddit Stocks"),
@@ -858,5 +863,15 @@ def format_search_fallback_report(report: dict[str, Any]) -> str:
         if not isinstance(data, dict):
             lines.append(f"- {label}: no structured data")
             continue
-        lines.append(f"- {label}: {data.get('count', 0)} matches")
+        results = [row for row in (data.get("results") or []) if isinstance(row, dict)]
+        matches: list[str] = []
+        for row in results[:limit]:
+            symbol = row.get("ticker") or row.get("symbol") or row.get("asset")
+            name = row.get("company_name") or row.get("name")
+            if symbol and name and str(symbol).strip().casefold() != str(name).strip().casefold():
+                matches.append(f"{symbol} ({name})")
+            elif symbol or name:
+                matches.append(str(symbol or name))
+        summary = ", ".join(matches) if matches else "no matches"
+        lines.append(f"- {label}: {summary}")
     return "\n".join(lines)
