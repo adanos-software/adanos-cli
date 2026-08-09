@@ -103,21 +103,20 @@ ROOT_COMMANDS = (
 )
 
 SHELL_LOGO_LINES = (
-    ("             ______             ", "yellow"),
-    ("       _____/######\\_____       ", "yellow"),
-    ("  ____/##################\\____  ", "orange"),
-    (" /############################\\ ", "orange"),
-    (" \\############################/ ", "orange"),
-    ("      \\##################/      ", "orange"),
-    (" \\============================/ ", "dark_gray"),
-    ("  \\==========================/  ", "dark_gray"),
-    ("       \\================/       ", "dark_gray"),
-    (" \\----------------------------/ ", "gray"),
-    ("  \\--------------------------/  ", "gray"),
-    ("       \\----------------/       ", "gray"),
-    (" \\............................/ ", "light_gray"),
-    ("  \\........................../  ", "light_gray"),
-    ("       \\................/       ", "light_gray"),
+    ("      ▄▄▄██████▄▄▄      ", "yellow"),
+    ("▄▄▄██████████████████▄▄▄", "orange"),
+    ("▀▀▀██████████████████▀▀▀", "orange"),
+    ("      ▀▀▀██████▀▀▀      ", "orange"),
+    ("▀▀████▄▄▄      ▄▄▄████▀▀", "dark_gray"),
+    ("     ▀▀▀███▄▄███▀▀▀     ", "dark_gray"),
+    ("▀▀████▄▄▄      ▄▄▄████▀▀", "gray"),
+    ("     ▀▀▀███▄▄███▀▀▀     ", "gray"),
+    ("▀▀████▄▄▄      ▄▄▄████▀▀", "light_gray"),
+    ("     ▀▀▀███▄▄███▀▀▀     ", "light_gray"),
+)
+SHELL_LOGO_ASCII_LINES = (
+    ("     [ ADANOS ]     ", "orange"),
+    ("  STOCKS + CRYPTO  ", "gray"),
 )
 
 
@@ -309,18 +308,30 @@ def _print_shell_header(base_url: str, *, has_api_key: bool, api_key_status: str
         f"api_key: {key_status}",
     ]
 
-    logo_width = max(len(line) for line, _color in SHELL_LOGO_LINES)
-    row_count = max(len(SHELL_LOGO_LINES), len(details))
+    logo_lines = _shell_logo_lines()
+    logo_width = max(len(line) for line, _color in logo_lines)
+    detail_offset = 2
+    row_count = max(len(logo_lines), detail_offset + len(details))
     for idx in range(row_count):
-        if idx < len(SHELL_LOGO_LINES):
-            left_raw, color = SHELL_LOGO_LINES[idx]
-            left = _style(left_raw, fg=color, bold=idx < 5)
+        if idx < len(logo_lines):
+            left_raw, color = logo_lines[idx]
+            left = _style(left_raw, fg=color, bold=idx < 4)
         else:
             left = " " * logo_width
-        right = details[idx] if idx < len(details) else ""
+        detail_idx = idx - detail_offset
+        right = details[detail_idx] if 0 <= detail_idx < len(details) else ""
         print(f"{left}  {right}")
 
     print(_style("-" * 68, dim=True))
+
+
+def _shell_logo_lines(encoding: str | None = None) -> tuple[tuple[str, str], ...]:
+    output_encoding = encoding or getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        "".join(line for line, _color in SHELL_LOGO_LINES).encode(output_encoding)
+    except (LookupError, UnicodeEncodeError):
+        return SHELL_LOGO_ASCII_LINES
+    return SHELL_LOGO_LINES
 
 
 def _print_shell_quickstart(*, has_api_key: bool) -> None:

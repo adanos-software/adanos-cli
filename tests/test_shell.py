@@ -109,13 +109,19 @@ def test_shell_header_uses_stacked_adanos_brand_mark(monkeypatch, capsys) -> Non
     cli_main._print_shell_header("https://api.adanos.org", has_api_key=False)
     out = capsys.readouterr().out
 
-    assert "_____/######\\_____" in out
-    assert "\\============================/" in out
-    assert "\\----------------------------/" in out
-    assert "\\............................/" in out
-    assert "\\________________/" not in out
+    assert "▄▄▄██████████████████▄▄▄" in out
+    assert out.count("▀▀████▄▄▄      ▄▄▄████▀▀") == 3
+    assert "################" not in out
+    lines = out.splitlines()
+    assert lines[2].endswith("Adanos Market Sentiment CLI v1.33.0")
     assert "   / ____ \\" not in out
     assert "\033[" not in out
+
+
+def test_shell_logo_has_ascii_fallback_for_limited_output_encoding() -> None:
+    assert cli_main._shell_logo_lines("utf-8") == cli_main.SHELL_LOGO_LINES
+    assert cli_main._shell_logo_lines("ascii") == cli_main.SHELL_LOGO_ASCII_LINES
+    assert all(line.isascii() for line, _color in cli_main.SHELL_LOGO_ASCII_LINES)
 
 
 def test_shell_help_shows_command_catalog(tmp_path, monkeypatch, capsys) -> None:
