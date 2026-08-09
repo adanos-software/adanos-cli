@@ -109,11 +109,12 @@ def test_shell_header_uses_stacked_adanos_brand_mark(monkeypatch, capsys) -> Non
     cli_main._print_shell_header("https://api.adanos.org", has_api_key=False)
     out = capsys.readouterr().out
 
-    assert "▄▄▄██████████████████▄▄▄" in out
-    assert out.count("▀▀████▄▄▄      ▄▄▄████▀▀") == 3
+    assert "▄▄██████████████████████████▄▄" in out
+    assert out.count("██████▄▄▄            ▄▄▄██████") == 3
+    assert out.count("▀▀▀██████▄▄▄▄▄▄██████▀▀▀") == 3
     assert "################" not in out
     lines = out.splitlines()
-    assert lines[2].endswith("Adanos Market Sentiment CLI v1.33.0")
+    assert lines[5].endswith("Adanos Market Sentiment CLI v1.33.0")
     assert "   / ____ \\" not in out
     assert "\033[" not in out
 

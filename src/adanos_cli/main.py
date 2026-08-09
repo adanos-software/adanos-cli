@@ -103,16 +103,21 @@ ROOT_COMMANDS = (
 )
 
 SHELL_LOGO_LINES = (
-    ("      ▄▄▄██████▄▄▄      ", "yellow"),
-    ("▄▄▄██████████████████▄▄▄", "orange"),
-    ("▀▀▀██████████████████▀▀▀", "orange"),
-    ("      ▀▀▀██████▀▀▀      ", "orange"),
-    ("▀▀████▄▄▄      ▄▄▄████▀▀", "dark_gray"),
-    ("     ▀▀▀███▄▄███▀▀▀     ", "dark_gray"),
-    ("▀▀████▄▄▄      ▄▄▄████▀▀", "gray"),
-    ("     ▀▀▀███▄▄███▀▀▀     ", "gray"),
-    ("▀▀████▄▄▄      ▄▄▄████▀▀", "light_gray"),
-    ("     ▀▀▀███▄▄███▀▀▀     ", "light_gray"),
+    ("           ▄▄████▄▄           ", "yellow"),
+    ("     ▄▄▄██████████████▄▄▄     ", "yellow"),
+    ("▄▄██████████████████████████▄▄", "orange"),
+    ("▀▀██████████████████████████▀▀", "orange"),
+    ("     ▀▀▀██████████████▀▀▀     ", "orange"),
+    ("           ▀▀████▀▀           ", "orange"),
+    ("██████▄▄▄            ▄▄▄██████", "dark_gray"),
+    ("   ▀▀▀██████▄▄▄▄▄▄██████▀▀▀   ", "dark_gray"),
+    ("         ▀▀▀██████▀▀▀         ", "dark_gray"),
+    ("██████▄▄▄            ▄▄▄██████", "gray"),
+    ("   ▀▀▀██████▄▄▄▄▄▄██████▀▀▀   ", "gray"),
+    ("         ▀▀▀██████▀▀▀         ", "gray"),
+    ("██████▄▄▄            ▄▄▄██████", "light_gray"),
+    ("   ▀▀▀██████▄▄▄▄▄▄██████▀▀▀   ", "light_gray"),
+    ("         ▀▀▀██████▀▀▀         ", "light_gray"),
 )
 SHELL_LOGO_ASCII_LINES = (
     ("     [ ADANOS ]     ", "orange"),
@@ -310,7 +315,7 @@ def _print_shell_header(base_url: str, *, has_api_key: bool, api_key_status: str
 
     logo_lines = _shell_logo_lines()
     logo_width = max(len(line) for line, _color in logo_lines)
-    detail_offset = 2
+    detail_offset = 5 if logo_lines is SHELL_LOGO_LINES else len(logo_lines)
     row_count = max(len(logo_lines), detail_offset + len(details))
     for idx in range(row_count):
         if idx < len(logo_lines):
