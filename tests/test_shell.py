@@ -109,8 +109,11 @@ def test_shell_header_uses_stacked_adanos_brand_mark(monkeypatch, capsys) -> Non
     cli_main._print_shell_header("https://api.adanos.org", has_api_key=False)
     out = capsys.readouterr().out
 
-    assert "      ___/      \\___" in out
-    assert out.count("\\________________/") == 3
+    assert "_____/######\\_____" in out
+    assert "\\============================/" in out
+    assert "\\----------------------------/" in out
+    assert "\\............................/" in out
+    assert "\\________________/" not in out
     assert "   / ____ \\" not in out
     assert "\033[" not in out
 
