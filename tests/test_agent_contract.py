@@ -37,6 +37,17 @@ def test_version_json(capsys) -> None:
     assert payload["version"] == __version__
 
 
+def test_version_defaults_to_one_line_when_stdout_is_captured(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(sys, "argv", ["adanos", "--version"])
+
+    rc = cli_main.main()
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert captured.err == ""
+    assert captured.out == f"adanos-cli {__version__}\n"
+
+
 def test_capabilities_json(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
     monkeypatch.delenv("ADANOS_API_KEY", raising=False)
@@ -53,6 +64,82 @@ def test_capabilities_json(tmp_path, monkeypatch, capsys) -> None:
     assert payload["auth"]["secret_input"] == ["prompt", "--api-key-stdin", "--api-key-file", "--api-key", "ADANOS_API_KEY"]
     assert payload["json_contract"]["required"] == ["kind", "command"]
     assert "shell" in payload["commands"]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--json", "capabilities"],
+        ["capabilities", "--json"],
+    ],
+)
+def test_json_is_a_global_order_independent_flag(argv, capsys) -> None:
+    rc = cli_main.main(argv)
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert captured.err == ""
+    assert json.loads(captured.out)["kind"] == "capabilities"
+
+
+def test_json_mode_renders_parser_errors_as_json(capsys) -> None:
+    rc = cli_main.main(["--json", "not-a-command"])
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert captured.out == ""
+    payload = json.loads(captured.err)
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "usage_error"
+    assert "invalid choice" in payload["error"]["message"]
+
+
+def test_repeated_output_mode_uses_final_value_for_parser_errors(capsys) -> None:
+    rc = cli_main.main(["--output", "text", "--output", "json", "not-a-command"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert json.loads(captured.err)["error"]["code"] == "usage_error"
+
+    rc = cli_main.main(["--output", "json", "--output", "text", "not-a-command"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert captured.err.startswith("usage: adanos")
+
+    rc = cli_main.main(["--output", "text", "--json", "not-a-command"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert json.loads(captured.err)["error"]["code"] == "usage_error"
+
+    rc = cli_main.main(["--json", "--output", "text", "not-a-command"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert captured.err.startswith("usage: adanos")
+
+
+def test_unsaved_redeem_requires_final_explicit_json_payload_selector() -> None:
+    assert cli_main._explicit_redeem_output(["--output", "json", "onboard", "redeem"])
+    assert cli_main._explicit_redeem_output(["--quiet", "--json", "onboard", "redeem"])
+    assert cli_main._explicit_redeem_output(["--json", "--quiet", "onboard", "redeem"])
+    assert not cli_main._explicit_redeem_output(["--quiet", "onboard", "redeem"])
+    assert not cli_main._explicit_redeem_output(["--json", "--output", "text", "onboard", "redeem"])
+    assert not cli_main._explicit_redeem_output(["onboard", "redeem", "--", "--output", "json"])
+
+
+def test_option_choice_error_does_not_suggest_a_subcommand(capsys) -> None:
+    rc = cli_main.main(["--output", "jsn", "capabilities"])
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "adanos json --help" not in captured.err
+    assert "adanos --help" in captured.err
+
+
+def test_long_option_abbreviations_are_rejected(capsys) -> None:
+    rc = cli_main.main(["--qui", "capabilities"])
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "unrecognized arguments" in captured.err
 
 
 def test_missing_api_key_emits_json_error_on_stderr(tmp_path, monkeypatch, capsys) -> None:
@@ -95,6 +182,15 @@ def test_unknown_command_shows_hint(capsys) -> None:
     assert "error:" in captured.err
     assert "hint:" in captured.err
     assert "Did you mean `watch`?" in captured.err
+
+
+def test_nested_unknown_command_uses_nested_hint(capsys) -> None:
+    rc = cli_main.main(["auth", "curent"])
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "Did you mean `current`?" in captured.err
+    assert "adanos auth current --help" in captured.err
 
 
 def test_endpoint_list_output_json_after_subcommand_is_accepted(capsys) -> None:
@@ -174,6 +270,8 @@ def test_endpoint_human_result_uses_table_not_raw_json(monkeypatch, capsys) -> N
 
     out = capsys.readouterr().out
     assert "rank  asset" in out
+    assert "mentions" in out
+    assert "  volume  " not in out
     assert "MSFT" in out
     assert '"ticker"' not in out
     assert "Use --json or --output json" in out
@@ -196,6 +294,33 @@ def test_endpoint_human_table_preserves_false_status(monkeypatch, capsys) -> Non
 
     out = capsys.readouterr().out
     assert "False" in out
+
+
+def test_polymarket_table_labels_trade_activity(capsys) -> None:
+    lines = cli_main._format_compact_rows(
+        [{"ticker": "TSLA", "buzz_score": 70, "sentiment_score": 0.2, "trade_count": 42}]
+    )
+
+    assert "trades" in lines[0]
+    assert "volume" not in lines[0]
+
+
+def test_polymarket_table_uses_trade_count_under_trade_header() -> None:
+    lines = cli_main._format_compact_rows(
+        [
+            {
+                "ticker": "TSLA",
+                "buzz_score": 70,
+                "sentiment_score": 0.2,
+                "trade_count": 42,
+                "volume": 999,
+            }
+        ]
+    )
+
+    assert "trades" in lines[0]
+    assert "42" in lines[1]
+    assert "999" not in lines[1]
 
 
 def test_polymarket_stock_endpoint_human_formats_pulse_and_evidence(monkeypatch, capsys) -> None:

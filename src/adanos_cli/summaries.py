@@ -487,9 +487,10 @@ def _format_source(name: str, payload: dict[str, Any], *, mentions_key: str, sen
 
     buzz = fmt_num(data.get("buzz_score"))
     trend = data.get("trend") or "n/a"
-    mentions = fmt_num(_resolve_volume_value(data, mentions_key))
+    activity = fmt_num(_resolve_volume_value(data, mentions_key))
+    activity_label = "trades" if mentions_key == "trade_count" else "mentions"
     sentiment = fmt_num(data.get(sentiment_key))
-    return f"- {name}: attention/buzz={buzz}, trend={trend}, volume={mentions}, sentiment_score={sentiment}"
+    return f"- {name}: attention/buzz={buzz}, trend={trend}, {activity_label}={activity}, sentiment_score={sentiment}"
 
 
 def format_polymarket_stock_details(
@@ -665,11 +666,12 @@ def format_stock_compare_report(report: dict[str, Any]) -> str:
         lines.append(f"- {label}:")
         for row in rows[:10]:
             mentions = row.get("mentions", row.get("trade_count"))
+            activity_label = "trades" if key == "polymarket" else "mentions"
             sentiment = row.get("sentiment_score")
             lines.append(
                 "  "
                 f"{row.get('ticker', 'n/a')}: buzz={fmt_num(row.get('buzz_score'))}, "
-                f"volume={fmt_num(mentions)}, sentiment={fmt_num(sentiment)}"
+                f"{activity_label}={fmt_num(mentions)}, sentiment={fmt_num(sentiment)}"
             )
     return "\n".join(lines)
 
@@ -740,7 +742,7 @@ def format_stock_scan_report(report: dict[str, Any], *, top: int = 10) -> str:
             f"{row.get('ticker', 'n/a')}: consensus={fmt_num(row.get('consensus_buzz'))}, "
             f"sentiment={fmt_num(row.get('consensus_sentiment'))}, signal={row.get('signal', 'n/a')} "
             f"({fmt_num(row.get('confidence'))}), platforms={fmt_num(row.get('platforms'))}, "
-            f"volume={fmt_num(row.get('total_volume'))}, {source_label}"
+            f"activity={fmt_num(row.get('total_volume'))}, {source_label}"
         )
     source_status = report.get("source_status") or {}
     for source, status in source_status.items():

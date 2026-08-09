@@ -387,6 +387,70 @@ def test_ask_routes_common_crypto_symbols_to_crypto_reports(tmp_path, monkeypatc
     assert payload["command"] == "ask"
 
 
+def test_ask_routes_unseparated_stock_list_to_multi_stock_compare(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
+    monkeypatch.setattr(
+        cli_main,
+        "_resolve_stock_ticker",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("explicit tickers must not trigger search")),
+    )
+
+    rc = cli_main.main(
+        [
+            "--api-key",
+            "adanos_key_test",
+            "ask",
+            "compare",
+            "NVDA",
+            "TSLA",
+            "AAPL",
+            "--json",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert payload["kind"] == "stock_compare"
+    assert payload["command"] == "ask"
+    assert payload["tickers"] == ["NVDA", "TSLA", "AAPL"]
+
+
+def test_ask_compare_canonicalizes_dollar_prefixed_tickers(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
+    monkeypatch.setattr(
+        cli_main,
+        "_resolve_stock_ticker",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("explicit tickers must not trigger search")),
+    )
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "ask", "compare", "$NVDA", "$TSLA", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert payload["tickers"] == ["NVDA", "TSLA"]
+
+
+def test_ask_positional_json_after_terminator_stays_text(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "ask", "--", "--json"])
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert captured.out
+    assert not captured.out.lstrip().startswith("{")
+
+
+def test_ask_compare_preserves_vs_ticker() -> None:
+    intent = cli_main.parse_ask_intent("compare NVDA AAPL VS")
+
+    assert intent.kind == "stock_compare"
+    assert intent.assets == ("NVDA", "AAPL", "VS")
+
+
 def test_consensus_and_explain_reports(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
     monkeypatch.setattr(cli_main, "_load_sdk_client_class", lambda: _FakeClient)
@@ -399,6 +463,13 @@ def test_consensus_and_explain_reports(tmp_path, monkeypatch, capsys) -> None:
     assert payload["ticker"] == "MSFT"
     assert payload["sources_covered"] == 4
     assert payload["signal"] in {"bullish", "neutral", "hot"}
+
+    rc = cli_main.main(["--api-key", "adanos_key_test", "consensus", "MSFT"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "data_confidence=" in out
+    assert "tracked_activity=" in out
+    assert "Polymarket" in out and "trades=" in out
 
     rc = cli_main.main(["--api-key", "adanos_key_test", "explain", "MSFT", "--profile", "daytrader", "--json"])
     assert rc == 0

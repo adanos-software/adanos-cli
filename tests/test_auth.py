@@ -83,7 +83,7 @@ def test_auth_profile_flow(tmp_path, monkeypatch, capsys) -> None:
     assert payload["active_profile"] == "prod"
     assert len(payload["profiles"]) == 2
 
-    rc = cli_main.main(["auth", "logout", "--profile", "staging", "--output", "json"])
+    rc = cli_main.main(["auth", "logout", "--profile", "staging", "--force", "--output", "json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["profile"] == "staging"
@@ -256,7 +256,7 @@ def test_auth_subcommands_accept_json_shortcut(tmp_path, monkeypatch, capsys) ->
     assert payload["subcommand"] == "switch"
     assert payload["profile"] == "prod"
 
-    rc = cli_main.main(["auth", "logout", "--profile", "prod", "--json"])
+    rc = cli_main.main(["auth", "logout", "--profile", "prod", "--force", "--json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["action"] == "auth_logout"
@@ -296,7 +296,7 @@ def test_config_subcommands_accept_json_shortcut(tmp_path, monkeypatch, capsys) 
     assert payload["subcommand"] == "show"
     assert payload["base_url"] == "https://example.com"
 
-    rc = cli_main.main(["config", "clear", "--json"])
+    rc = cli_main.main(["config", "clear", "--force", "--json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["action"] == "config_clear"
@@ -324,11 +324,27 @@ def test_login_alias_works(tmp_path, monkeypatch, capsys) -> None:
     assert payload["action"] == "auth_login"
     assert payload["profile"] == "prod"
 
-    rc = cli_main.main(["logout", "--profile", "prod", "--output", "json"])
+    rc = cli_main.main(["logout", "--profile", "prod", "--force", "--output", "json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["action"] == "auth_logout"
     assert payload["profile"] == "prod"
+
+
+def test_auth_logout_requires_force_without_tty(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    monkeypatch.setattr(sys, "stdin", io.StringIO("adanos_key_keepabcdefghijklmnopqrstuvwxyz\n"))
+    assert cli_main.main(["login", "--api-key-stdin", "--profile", "prod", "--json"]) == 0
+    capsys.readouterr()
+
+    rc = cli_main.main(["--no-input", "auth", "logout", "--profile", "prod", "--json"])
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    payload = json.loads(captured.err)
+    assert payload["error"]["code"] == "confirmation_required"
+    assert "--force" in payload["error"]["hint"]
+    assert cli_config.get_profile("prod") is not None
 
 
 def test_auth_login_prompts_secret_in_interactive_mode(tmp_path, monkeypatch, capsys) -> None:

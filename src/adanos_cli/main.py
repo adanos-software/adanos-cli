@@ -104,10 +104,24 @@ ROOT_COMMANDS = (
 
 
 class AdanosArgumentParser(argparse.ArgumentParser):
+    _json_errors = False
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("allow_abbrev", False)
+        super().__init__(*args, **kwargs)
+
     def error(self, message: str) -> None:
+        hint = _parser_usage_hint(message, parser=self)
+        if self._json_errors:
+            _emit_error(
+                json_mode=True,
+                code="usage_error",
+                message=message,
+                hint=hint,
+            )
+            raise SystemExit(2)
         self.print_usage(sys.stderr)
         print_err(f"error: {message}")
-        hint = _usage_hint(message)
         if hint:
             print_err(f"hint: {hint}")
         raise SystemExit(2)
@@ -154,13 +168,13 @@ def _print_onboarding_guide(base_url: str, *, has_api_key: bool = False) -> None
 
     print("Guided setup (no curl):")
     print("1) If you already have an API key:")
-    print("   adanos login --api-key sk_live_xxx")
+    print("   adanos login  # paste the key at the hidden prompt")
     print("2) Recommended if you need a new key: run the interactive wizard")
     print("   adanos onboard wizard")
     print("3) Manual alternative:")
     print('   adanos onboard register --name "Your Name" --email "you@example.com" --purpose "CLI usage for stocks and crypto"')
     print("   # wait for the email, then redeem the one-time token")
-    print("   adanos onboard redeem --token <delivery_token> --save")
+    print("   adanos onboard redeem --save  # paste the one-time code at the hidden prompt")
     print("4) If you lost access to an existing key:")
     print('   adanos onboard recover --email "you@example.com"')
     print("5) Start using the API:")
@@ -240,7 +254,7 @@ def _print_start_screen(base_url: str, *, has_api_key: bool, api_key: str | None
         print("  2) Run diagnostics: adanos doctor")
         print("  3) First signal: adanos consensus TSLA")
     else:
-        print("  1) Login: adanos login --api-key sk_live_xxx")
+        print("  1) Login: adanos login  # paste the key at the hidden prompt")
         print("  2) Inspect config: adanos whoami")
         print("  3) Run diagnostics: adanos doctor")
     print("")
@@ -302,7 +316,7 @@ def _print_shell_quickstart(*, has_api_key: bool) -> None:
         print("  Plan/Credits: /account")
     else:
         print("  1) Configure API key: /onboard wizard")
-        print("  2) Or set existing key: /config set --api-key sk_live_xxx")
+        print("  2) Or set existing key: /login  # paste at the hidden prompt")
         print('  3) First query: /ask "How does TSLA look?"')
     print(_style("Type /help for full command catalog.", dim=True))
     print("")
@@ -324,14 +338,14 @@ def _print_shell_help(*, has_api_key: bool) -> None:
         print("  1) Configure your API key:")
         print("     /onboard wizard")
         print("  2) Alternative if key already exists:")
-        print("     /config set --api-key sk_live_xxx")
+        print("     /login  # paste at the hidden prompt")
         print("  3) Run your first query:")
         print('     /ask "How does TSLA look?"')
     print("")
     print(_style("Command Catalog", fg="cyan", bold=True))
     print("  Setup + Config")
     print("    /onboard guide|wizard|register|redeem")
-    print("    /login --api-key sk_live_xxx")
+    print("    /login")
     print("    /logout")
     print("    /auth login|logout|list|switch|current")
     print("    /config show|set|clear")
@@ -587,8 +601,12 @@ def _run_shell(base_url: str, *, has_api_key: bool, use_fullscreen: bool, api_ke
 
 def _normalize_global_cli_flags(argv: list[str]) -> list[str]:
     """Allow global flags to appear after subcommands by hoisting them to the front."""
+    if "--" in argv:
+        options_end = argv.index("--")
+        return _normalize_global_cli_flags(argv[:options_end]) + argv[options_end:]
+
     value_flags = {"--api-key", "--base-url", "--output"}
-    bare_flags = {"--version", "--quiet", "--no-color", "--no-input", "--plain"}
+    bare_flags = {"--version", "--json", "--quiet", "--no-color", "--no-input", "--plain"}
     command_prefix: list[str] = []
     scan_idx = 0
     while scan_idx < len(argv):
@@ -712,7 +730,7 @@ def _capabilities_payload(base_url: str, *, has_api_key: bool) -> dict[str, Any]
         "api_key_configured": has_api_key,
         "output_modes": ["auto", "text", "json"],
         "global_flags": {
-            "output": ["--output text", "--output json", "--quiet", "--plain"],
+            "output": ["--output text", "--output json", "--json", "--quiet", "--plain"],
             "interaction": ["--no-color", "--no-input"],
             "auth": ["--api-key", "--base-url"],
         },
@@ -739,18 +757,19 @@ def _capabilities_payload(base_url: str, *, has_api_key: bool) -> dict[str, Any]
                 "adanos onboard wizard",
                 "adanos onboard register --name ... --email ... --purpose ...",
                 "check email for the one-time token",
-                "adanos onboard redeem --token <delivery_token> --save",
+                "adanos onboard redeem --save",
             ],
             "alternatives": [
                 "adanos login --api-key-stdin",
                 "adanos login --api-key-file ~/.config/adanos-cli/key.txt",
-                "adanos login --api-key sk_live_xxx",
-                "adanos auth login --api-key sk_live_xxx --profile prod",
-                "adanos config set --api-key sk_live_xxx",
+                "adanos login",
+                "adanos auth login --profile prod",
+                "adanos config set --api-key-file ~/.config/adanos-cli/key.txt",
                 "ADANOS_API_KEY env var",
                 "--api-key flag",
             ],
             "secret_input": ["prompt", "--api-key-stdin", "--api-key-file", "--api-key", "ADANOS_API_KEY"],
+            "recommended_secret_input": ["prompt", "--api-key-stdin", "--api-key-file"],
         },
         "endpoint_list_filters": ["--platform", "--search", "--json"],
         "discovery_commands": [
@@ -810,17 +829,26 @@ def _first_present(row: dict[str, Any], keys: tuple[str, ...]) -> Any:
 def _format_compact_rows(rows: list[dict[str, Any]], *, limit: int = 12) -> list[str]:
     if not rows:
         return ["- no rows returned"]
-    out = ["rank  asset        buzz     sentiment  volume   trend/status"]
+    if any(row.get("trade_count") not in (None, "") for row in rows):
+        activity_label = "trades"
+        activity_keys = ("trade_count",)
+    elif any(row.get("mentions") not in (None, "") for row in rows):
+        activity_label = "mentions"
+        activity_keys = ("mentions",)
+    else:
+        activity_label = "activity"
+        activity_keys = ("volume", "count", "current_market_count", "market_count")
+    out = [f"rank  asset        buzz     sentiment  {activity_label:<8} trend/status"]
     for index, row in enumerate(rows[:limit], start=1):
         rank = _first_present(row, ("rank", "position")) or index
         asset = _first_present(row, ("ticker", "symbol", "asset", "sector", "country", "name", "id")) or "n/a"
         buzz = _first_present(row, ("buzz_score", "buzz", "score"))
         sentiment = _first_present(row, ("sentiment_score", "sentiment", "bullish_pct"))
-        volume = _first_present(row, ("mentions", "trade_count", "volume", "count", "current_market_count", "market_count"))
+        volume = _first_present(row, activity_keys)
         status = _first_present(row, ("trend", "market_status", "status", "active"))
         out.append(
             f"{str(rank)[:4]:<4}  {str(asset)[:11]:<11}  {fmt_num(buzz):<7}  "
-            f"{fmt_num(sentiment):<9}  {fmt_num(volume):<7}  {str('n/a' if status is None else status)[:18]}"
+            f"{fmt_num(sentiment):<9}  {fmt_num(volume):<8} {str('n/a' if status is None else status)[:18]}"
         )
     if len(rows) > limit:
         out.append(f"- {len(rows) - limit} more rows hidden; use --json for the full payload")
@@ -1097,7 +1125,7 @@ def _classify_runtime_error(exc: Exception) -> tuple[str, str, str | None, int |
         return (
             "auth_failed",
             "Invalid or revoked API key.",
-            "Update your key with `adanos config set --api-key sk_live_xxx`.",
+            "Update your key with `adanos login` or `adanos login --api-key-stdin`.",
             401,
         )
 
@@ -1472,7 +1500,7 @@ def _build_doctor_payload(runtime_cfg: cli_config.RuntimeConfig) -> dict[str, An
                 "status": "fail",
                 "message": "No API key configured",
                 "detail": "Priority: --api-key > ADANOS_API_KEY > active profile credentials",
-                "next_step": "Run: adanos login --api-key sk_live_xxx",
+                "next_step": "Run: adanos login",
             }
         )
 
@@ -1534,9 +1562,9 @@ def _build_doctor_payload(runtime_cfg: cli_config.RuntimeConfig) -> dict[str, An
         detail = None
         if account_error.get("code") == "api_key_missing":
             detail = "Skipped because credentials are not configured."
-            next_step = "Run: adanos login --api-key sk_live_xxx"
+            next_step = "Run: adanos login"
         elif account_error.get("code") == "auth_failed":
-            next_step = "Run: adanos login --api-key <fresh_key>"
+            next_step = "Run: adanos login"
         checks.append(
             {
                 "name": "API Validation",
@@ -1681,7 +1709,7 @@ def _run_account_status(args: Namespace, base_url: str, api_key: str, *, json_mo
             json_mode=json_mode,
             code="auth_failed",
             message="Invalid or revoked API key.",
-            hint="Update your key with `adanos config set --api-key sk_live_xxx`.",
+            hint="Update your key with `adanos login` or `adanos login --api-key-stdin`.",
             status_code=401,
         )
         return 2
@@ -1825,7 +1853,7 @@ def _run_onboard_register(args: Namespace, base_url: str, *, json_mode: bool) ->
         print(f"Email: {email}")
         print(str(data.get("message") or "Check your email for the secure verification link."))
         print("Next command:")
-        print("adanos onboard redeem --token <delivery_token> --save")
+        print("adanos onboard redeem --save  # paste the one-time code at the hidden prompt")
 
     return 0
 
@@ -2070,7 +2098,7 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawTextHelpFormatter,
         epilog=(
             "Start here:\n"
-            "  adanos login --api-key sk_live_xxx\n"
+            "  adanos login\n"
             "  adanos whoami\n"
             "  adanos doctor\n"
             "  adanos shell\n"
@@ -2083,13 +2111,14 @@ def _build_parser() -> argparse.ArgumentParser:
             "  --api-key flag > ADANOS_API_KEY env var > active profile in credentials.json\n"
             "\n"
             "Output:\n"
-            "  Human-readable by default. Use --output json / --quiet for machines.\n"
+            "  Human-readable by default. Use --json / --output json / --quiet for machines.\n"
             "  Direct CLI invocations auto-switch to JSON when stdout is piped unless --output text is explicit."
         ),
     )
     parser.add_argument("--api-key", help="Override API key for this call")
     parser.add_argument("--base-url", help=f"Override base URL (default: {DEFAULT_BASE_URL})")
     parser.add_argument("--output", choices=["text", "json"], default=None, help="Output mode. Default is auto: text on TTY, JSON when stdout is piped.")
+    parser.add_argument("--json", action="store_true", help="Emit stable JSON output (global alias for --output json)")
     parser.add_argument("--quiet", action="store_true", help="Suppress status-style text output; implies JSON")
     parser.add_argument("--plain", action="store_true", help="Force plain text output; disables auto JSON for piped stdout")
     parser.add_argument("--no-color", action="store_true", help="Disable ANSI color output")
@@ -2117,7 +2146,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_onboard_register.set_defaults(_handler="onboard_register")
 
     p_onboard_redeem = onboard_subs.add_parser("redeem", help="Redeem the one-time token from your email to get the API key")
-    p_onboard_redeem.add_argument("--token", required=True, help="One-time delivery token (kt_...)")
+    token_group = p_onboard_redeem.add_mutually_exclusive_group()
+    token_group.add_argument("--token", help="Legacy: one-time delivery token (visible in process history)")
+    token_group.add_argument("--token-stdin", action="store_true", help="Read the one-time delivery token from stdin")
     p_onboard_redeem.add_argument("--save", action="store_true", help="Save API key directly into local config")
     p_onboard_redeem.add_argument("--json", action="store_true")
     p_onboard_redeem.set_defaults(_handler="onboard_redeem")
@@ -2143,9 +2174,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  Use --api-key-stdin or --api-key-file when stdin/stdout is not a TTY.\n"
             "\n"
             "Examples:\n"
-            "  printf '%s\\n' sk_live_xxx | adanos auth login --api-key-stdin --profile prod\n"
+            "  adanos auth login --profile prod\n"
             "  adanos auth login --api-key-file ~/.config/adanos-cli/key.txt --profile prod\n"
-            "  adanos login --api-key sk_live_xxx\n"
         ),
     )
     p_auth_login.add_argument("--api-key", help="API key to store")
@@ -2158,6 +2188,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_auth_logout = auth_subs.add_parser("logout", help="Remove a stored profile")
     p_auth_logout.add_argument("--profile", help="Profile name to remove (default: active profile)")
+    p_auth_logout.add_argument("--force", action="store_true", help="Skip the destructive-action confirmation")
     p_auth_logout.add_argument("--json", action="store_true")
     p_auth_logout.set_defaults(_handler="auth_logout")
 
@@ -2184,10 +2215,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  Use --api-key-stdin or --api-key-file when stdin/stdout is not a TTY.\n"
             "\n"
             "Examples:\n"
-            "  printf '%s\\n' sk_live_xxx | adanos login --api-key-stdin\n"
+            "  adanos login\n"
             "  adanos login --api-key-file ~/.config/adanos-cli/key.txt\n"
-            "  adanos login --api-key sk_live_xxx\n"
-            "  adanos login --api-key sk_live_xxx --profile prod\n"
         ),
     )
     p_login.add_argument("--api-key", help="API key to store")
@@ -2200,6 +2229,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_logout = subs.add_parser("logout", help="Shortcut for `adanos auth logout`")
     p_logout.add_argument("--profile", help="Profile name to remove (default: active profile)")
+    p_logout.add_argument("--force", action="store_true", help="Skip the destructive-action confirmation")
     p_logout.add_argument("--json", action="store_true")
     p_logout.set_defaults(_handler="auth_logout")
 
@@ -2219,6 +2249,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_cfg_show.set_defaults(_handler="config_show")
 
     p_cfg_clear = cfg_subs.add_parser("clear", help="Delete local config file")
+    p_cfg_clear.add_argument("--force", action="store_true", help="Skip the destructive-action confirmation")
     p_cfg_clear.add_argument("--json", action="store_true")
     p_cfg_clear.set_defaults(_handler="config_clear")
 
@@ -2354,6 +2385,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_wl_delete = wl_subs.add_parser("delete", help="Delete watchlist")
     p_wl_delete.add_argument("name")
+    p_wl_delete.add_argument("--force", action="store_true", help="Skip the destructive-action confirmation")
     p_wl_delete.add_argument("--json", action="store_true")
     p_wl_delete.set_defaults(_handler="watchlist_delete")
 
@@ -3127,10 +3159,10 @@ def _format_consensus_report(payload: dict[str, Any]) -> str:
     lines = [
         f"Consensus for {payload.get('ticker', 'n/a')} ({payload.get('days', 'n/a')}d)",
         (
-            f"- Signal: {payload.get('signal', 'n/a')} | confidence_score={payload.get('confidence', 'n/a')} "
+            f"- Signal: {payload.get('signal', 'n/a')} | data_confidence={payload.get('confidence', 'n/a')}/100 "
             f"| consensus_buzz={payload.get('consensus_buzz', 'n/a')} | sentiment_score={payload.get('consensus_sentiment', 'n/a')}"
         ),
-        f"- Cross-source coverage: {payload.get('sources_covered', 0)} sources, volume={payload.get('total_volume', 0)}",
+        f"- Cross-source coverage: {payload.get('sources_covered', 0)} sources, tracked_activity={payload.get('total_volume', 0)}",
     ]
     for source in payload.get("sources", []):
         if not isinstance(source, dict):
@@ -3141,10 +3173,11 @@ def _format_consensus_report(payload: dict[str, Any]) -> str:
         if not source.get("found"):
             lines.append(f"- {source.get('label', source.get('source', 'source'))}: no data in selected window")
             continue
+        activity_label = "trades" if source.get("source") == "polymarket" else "mentions"
         lines.append(
             f"- {source.get('label', source.get('source', 'source'))}: "
             f"attention/buzz={source.get('buzz_score', 'n/a')}, sentiment_score={source.get('sentiment', 'n/a')}, "
-            f"volume={source.get('volume', 0)}, trend={source.get('trend', 'n/a')}"
+            f"{activity_label}={source.get('volume', 0)}, trend={source.get('trend', 'n/a')}"
         )
     reddit_explanation = str(payload.get("reddit_explanation") or "").strip()
     if reddit_explanation:
@@ -3170,7 +3203,7 @@ def _build_explain_report(consensus: dict[str, Any], *, reader_profile: str) -> 
         "daytrader": "Treat this as a short-horizon momentum read; cross-source confirmation matters more than raw narrative.",
         "swing": "Look for follow-through across multiple sessions rather than a one-day spike.",
         "investor": "Use the cross-source blend as a durability check, not a standalone investment thesis.",
-        "research": "Pay attention to source gaps, missing data, and whether the signal is narrative-heavy or volume-backed.",
+        "research": "Pay attention to source gaps, missing data, and whether the signal is narrative-heavy or activity-backed.",
     }
     signal = str(consensus.get("signal") or "neutral")
     confidence = int(consensus.get("confidence") or 0)
@@ -3189,8 +3222,8 @@ def _build_explain_report(consensus: dict[str, Any], *, reader_profile: str) -> 
 
     evidence = (
         f"Coverage spans {consensus.get('sources_covered', 0)} sources, "
-        f"with total tracked volume {consensus.get('total_volume', 0)}, "
-        f"consensus buzz {buzz}, sentiment {sentiment}, and confidence {confidence}."
+        f"with total tracked activity {consensus.get('total_volume', 0)}, "
+        f"consensus buzz {buzz}, sentiment {sentiment}, and data confidence {confidence}/100."
     )
     reddit_context = str(consensus.get("reddit_explanation") or "").strip()
     if not reddit_context:
@@ -3510,6 +3543,15 @@ def _resolve_stock_ticker(client: Any, text: str, primary: str | None) -> tuple[
     return None, None, None
 
 
+def _prompt_contains_explicit_ticker(text: str, ticker: str) -> bool:
+    pattern = re.compile(rf"(?<![A-Za-z0-9])\$?{re.escape(ticker)}(?![A-Za-z0-9])", re.IGNORECASE)
+    for match in pattern.finditer(text):
+        matched_symbol = match.group(0)
+        if matched_symbol.startswith("$") or matched_symbol.isupper():
+            return True
+    return False
+
+
 def _run_ask(client: Any, args: Namespace) -> None:
     text = " ".join(args.text).strip()
     intent = parse_ask_intent(text)
@@ -3590,21 +3632,34 @@ def _run_ask(client: Any, args: Namespace) -> None:
         return
 
     if intent.kind == "stock_compare" and intent.primary and intent.secondary:
-        first, first_from, _ = _resolve_stock_ticker(client, intent.primary, intent.primary)
-        second, second_from, _ = _resolve_stock_ticker(client, intent.secondary, intent.secondary)
-        tickers = [first or intent.primary, second or intent.secondary]
+        inputs = list(intent.assets) if len(intent.assets) >= 2 else [intent.primary, intent.secondary]
+        resolutions: list[dict[str, str]] = []
+        tickers: list[str] = []
+        for value in inputs:
+            if _prompt_contains_explicit_ticker(text, value):
+                resolved, resolved_from = value.upper().removeprefix("$"), value
+            else:
+                resolved, resolved_from, _ = _resolve_stock_ticker(client, value, value)
+            ticker = resolved or value
+            tickers.append(ticker)
+            resolutions.append(
+                {
+                    "input": value,
+                    "query": resolved_from or value,
+                    "ticker": ticker,
+                }
+            )
         report = build_stock_compare_report(client, tickers, **_period_from_args(args))
         if args.json:
-            report["resolution"] = {
-                "first": {"input": intent.primary, "query": first_from or intent.primary, "ticker": tickers[0]},
-                "second": {"input": intent.secondary, "query": second_from or intent.secondary, "ticker": tickers[1]},
-            }
+            report["resolution"] = {"assets": resolutions}
+            if len(resolutions) == 2:
+                report["resolution"]["first"] = resolutions[0]
+                report["resolution"]["second"] = resolutions[1]
             _emit_json_report(report, command="ask", subcommand="stock_compare")
             return
-        if tickers[0] != intent.primary.upper():
-            print(f"Resolved '{intent.primary.upper()}' -> {tickers[0]}")
-        if tickers[1] != intent.secondary.upper():
-            print(f"Resolved '{intent.secondary.upper()}' -> {tickers[1]}")
+        for resolution in resolutions:
+            if resolution["ticker"] != resolution["input"].upper():
+                print(f"Resolved '{resolution['input'].upper()}' -> {resolution['ticker']}")
         print(format_stock_compare_report(report))
         return
 
@@ -3668,19 +3723,199 @@ def _invocation_command_name(raw_argv: list[str]) -> str | None:
 
 
 def _should_record_activity(raw_argv: list[str]) -> bool:
+    options_end = raw_argv.index("--") if "--" in raw_argv else len(raw_argv)
+    if any(arg in {"-h", "--help", "--version"} for arg in raw_argv[:options_end]):
+        return False
     command = _invocation_command_name(raw_argv)
     return bool(command) and command not in {"logs"}
 
 
+def _explicit_output_mode(raw_argv: list[str]) -> str | None:
+    selected: str | None = None
+    idx = 0
+    while idx < len(raw_argv):
+        arg = raw_argv[idx]
+        if arg == "--":
+            break
+        if arg in {"--output=text", "--output=json"}:
+            selected = arg.split("=", 1)[1]
+        elif arg == "--output" and idx + 1 < len(raw_argv) and raw_argv[idx + 1] in {"text", "json"}:
+            selected = raw_argv[idx + 1]
+            idx += 1
+        elif arg in {"--json", "--quiet"}:
+            selected = "json"
+        elif arg == "--plain":
+            selected = "text"
+        idx += 1
+    return selected
+
+
+def _explicit_json_requested(raw_argv: list[str]) -> bool:
+    return _explicit_output_mode(raw_argv) == "json"
+
+
+def _explicit_redeem_output(raw_argv: list[str]) -> bool:
+    selected = False
+    idx = 0
+    while idx < len(raw_argv):
+        arg = raw_argv[idx]
+        if arg == "--":
+            break
+        if arg in {"--output=text", "--output=json"}:
+            selected = arg.endswith("=json")
+        elif arg == "--output" and idx + 1 < len(raw_argv) and raw_argv[idx + 1] in {"text", "json"}:
+            selected = raw_argv[idx + 1] == "json"
+            idx += 1
+        elif arg == "--json":
+            selected = True
+        elif arg == "--plain":
+            selected = False
+        idx += 1
+    return selected
+
+
+def _set_parser_json_errors(parser: argparse.ArgumentParser, *, enabled: bool) -> None:
+    if isinstance(parser, AdanosArgumentParser):
+        parser._json_errors = enabled
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for subparser in action.choices.values():
+                _set_parser_json_errors(subparser, enabled=enabled)
+
+
+def _run_onboarding_action(action: Any, *, json_mode: bool) -> int:
+    try:
+        return int(action())
+    except CliUsageError as exc:
+        _emit_error(
+            json_mode=json_mode,
+            code="usage_error",
+            message=str(exc),
+            hint="Run `adanos onboard --help`.",
+        )
+        return 2
+    except Exception as exc:
+        code, message, hint, status_code = _classify_runtime_error(exc)
+        _emit_error(
+            json_mode=json_mode,
+            code=code,
+            message=message,
+            hint=hint,
+            status_code=status_code,
+        )
+        return 2 if code == "auth_failed" else 1
+
+
+def _parser_usage_hint(message: str, *, parser: argparse.ArgumentParser) -> str:
+    match = re.search(r"invalid choice: '([^']+)'", message)
+    if not match:
+        return _usage_hint(message)
+
+    subcommand_dests = {
+        action.dest
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    }
+    if not any(f"argument {dest}: invalid choice" in message for dest in subcommand_dests):
+        return "Run `adanos --help` or `adanos --output json capabilities`."
+
+    invalid_choice = match.group(1)
+    choices_match = re.search(r"\(choose from ([^)]+)\)", message)
+    choices = ROOT_COMMANDS
+    if choices_match:
+        parsed_choices = tuple(
+            item.strip().strip("'\"")
+            for item in choices_match.group(1).split(",")
+            if item.strip()
+        )
+        if parsed_choices:
+            choices = parsed_choices
+    suggestion = difflib.get_close_matches(invalid_choice, choices, n=1)
+    if suggestion:
+        return f"Did you mean `{suggestion[0]}`? Run `{parser.prog} {suggestion[0]} --help`."
+    return _usage_hint(message)
+
+
+def _read_delivery_value(args: Namespace) -> str:
+    delivery_value = str(getattr(args, "token", "") or "").strip()
+    if delivery_value:
+        return delivery_value
+    if bool(getattr(args, "token_stdin", False)):
+        if bool(getattr(sys.stdin, "isatty", lambda: False)()):
+            raise CliUsageError("--token-stdin requires redirected input. Omit it to use the hidden prompt.")
+        delivery_value = sys.stdin.readline().strip()
+        if not delivery_value:
+            raise CliUsageError("No delivery token received on stdin.")
+        return delivery_value
+    if bool(getattr(args, "no_input", False)):
+        raise CliUsageError("Delivery token required with --no-input. Use --token-stdin.")
+    if not is_interactive():
+        raise CliUsageError("Non-interactive usage requires --token-stdin or the legacy --token flag.")
+    delivery_value = getpass("One-time code: ").strip()
+    if not delivery_value:
+        raise CliUsageError("Delivery token must not be empty.")
+    return delivery_value
+
+
+def _run_onboard_redeem_safely(args: Namespace, base_url: str, *, json_mode: bool) -> int:
+    if not args.save and not bool(getattr(args, "_explicit_redeem_output", False)):
+        _emit_error(
+            json_mode=json_mode,
+            code="onboard_redeem_destination_required",
+            message="Text-mode redemption requires a safe destination before the one-time token is consumed.",
+            hint="Use --save to store the key locally, or --json for explicit machine-readable output.",
+        )
+        return 2
+    args.token = _read_delivery_value(args)
+    return _run_onboard_redeem(args, base_url, json_mode=json_mode)
+
+
+def _guard_destructive_action(args: Namespace) -> int | None:
+    descriptions = {
+        "auth_logout": "remove the selected local auth profile",
+        "config_clear": "delete all local CLI config and credentials",
+        "watchlist_delete": f"delete watchlist '{getattr(args, 'name', '')}'",
+    }
+    description = descriptions.get(str(getattr(args, "_handler", "")))
+    if description is None or bool(getattr(args, "force", False)):
+        return None
+
+    hint = "Re-run with --force to confirm this destructive action."
+    if bool(getattr(args, "json", False)) or bool(getattr(args, "no_input", False)) or not is_interactive():
+        _emit_error(
+            json_mode=bool(getattr(args, "json", False)),
+            code="confirmation_required",
+            message=f"Refusing to {description} without confirmation.",
+            hint=hint,
+        )
+        return 2
+
+    if not _prompt_yes_no(f"Confirm: {description}?", default_yes=False):
+        print("Cancelled. No changes made.")
+        return 0
+    return None
+
+
 def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
     parser = _build_parser()
+    explicit_output_mode = _explicit_output_mode(raw_argv)
+    explicit_json = _explicit_json_requested(raw_argv)
+    _set_parser_json_errors(parser, enabled=explicit_json)
     normalized_argv = _normalize_global_cli_flags(raw_argv)
     try:
         args = parser.parse_args(normalized_argv)
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else 1
         return code
-    setattr(args, "json", should_output_json(args, argv_supplied=argv_supplied))
+    setattr(args, "json", bool(getattr(args, "json", False)))
+    json_mode = should_output_json(args, argv_supplied=argv_supplied)
+    if explicit_output_mode is not None:
+        json_mode = explicit_output_mode == "json"
+    elif args.version:
+        json_mode = False
+    setattr(args, "json", json_mode)
+    setattr(args, "_explicit_json", explicit_json)
+    setattr(args, "_explicit_redeem_output", _explicit_redeem_output(raw_argv))
 
     if args.version:
         if args.json:
@@ -3693,6 +3928,10 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
         api_key_override=getattr(args, "api_key", None),
         base_url_override=getattr(args, "base_url", None),
     )
+
+    guard_result = _guard_destructive_action(args)
+    if guard_result is not None:
+        return guard_result
 
     if not getattr(args, "command", None):
         is_tty = bool(sys.stdin.isatty() and sys.stdout.isatty())
@@ -3829,7 +4068,7 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
                                 "adanos onboard wizard",
                                 'adanos onboard register --name "Your Name" --email "you@example.com" --purpose "CLI usage for stocks and crypto"',
                                 "check email for the one-time token",
-                                "adanos onboard redeem --token <delivery_token> --save",
+                                "adanos onboard redeem --save",
                                 'adanos onboard recover --email "you@example.com"',
                             ],
                         },
@@ -3844,21 +4083,33 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
         return 0
 
     if handler == "onboard_wizard":
-        return _run_onboard_wizard(
-            args,
-            runtime_cfg.base_url,
+        return _run_onboarding_action(
+            lambda: _run_onboard_wizard(
+                args,
+                runtime_cfg.base_url,
+                json_mode=args.json,
+                runtime_has_key=bool(runtime_cfg.api_key),
+            ),
             json_mode=args.json,
-            runtime_has_key=bool(runtime_cfg.api_key),
         )
 
     if handler == "onboard_register":
-        return _run_onboard_register(args, runtime_cfg.base_url, json_mode=args.json)
+        return _run_onboarding_action(
+            lambda: _run_onboard_register(args, runtime_cfg.base_url, json_mode=args.json),
+            json_mode=args.json,
+        )
 
     if handler == "onboard_redeem":
-        return _run_onboard_redeem(args, runtime_cfg.base_url, json_mode=args.json)
+        return _run_onboarding_action(
+            lambda: _run_onboard_redeem_safely(args, runtime_cfg.base_url, json_mode=args.json),
+            json_mode=args.json,
+        )
 
     if handler == "onboard_recover":
-        return _run_onboard_recover(args, json_mode=args.json)
+        return _run_onboarding_action(
+            lambda: _run_onboard_recover(args, json_mode=args.json),
+            json_mode=args.json,
+        )
 
     if _requires_api_key(args) and not runtime_cfg.api_key:
         if args.json:
@@ -3866,7 +4117,7 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
                 json_mode=True,
                 code="api_key_missing",
                 message="API key is not configured",
-                hint="Run `adanos onboard` or `adanos config set --api-key sk_live_xxx`",
+                hint="Run `adanos onboard` or `adanos login`",
             )
         else:
             _print_onboarding_guide(runtime_cfg.base_url)

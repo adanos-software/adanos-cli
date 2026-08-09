@@ -8,7 +8,12 @@ import subprocess
 import sys
 
 
-def _command() -> list[str]:
+def _command(argv: list[str] | None = None) -> list[str]:
+    requested = list(sys.argv[1:] if argv is None else argv)
+    if requested[:1] == ["--"]:
+        requested = requested[1:]
+    if requested:
+        return requested
     adanos = shutil.which("adanos")
     if adanos:
         return [adanos]
@@ -25,13 +30,18 @@ def _assert_ok(name: str, result: subprocess.CompletedProcess[str]) -> None:
 
 
 def main() -> int:
-    capabilities = _run("--output", "json", "capabilities")
-    _assert_ok("capabilities json", capabilities)
-    payload = json.loads(capabilities.stdout)
-    assert payload["kind"] == "capabilities"
-    assert payload["command"] == "capabilities"
-    assert "auto" in payload["output_modes"]
-    assert "--api-key-stdin" in payload["auth"]["secret_input"]
+    for name, args in (
+        ("capabilities --output json", ("--output", "json", "capabilities")),
+        ("capabilities --json prefix", ("--json", "capabilities")),
+        ("capabilities --json suffix", ("capabilities", "--json")),
+    ):
+        capabilities = _run(*args)
+        _assert_ok(name, capabilities)
+        payload = json.loads(capabilities.stdout)
+        assert payload["kind"] == "capabilities"
+        assert payload["command"] == "capabilities"
+        assert "auto" in payload["output_modes"]
+        assert "--api-key-stdin" in payload["auth"]["secret_input"]
 
     text_capabilities = _run("--output", "text", "capabilities")
     _assert_ok("capabilities text", text_capabilities)
@@ -48,9 +58,28 @@ def main() -> int:
     _assert_ok("trending help", help_result)
     assert "Examples:" in help_result.stdout
 
+    root_help = _run("--help")
+    _assert_ok("root help", root_help)
+    assert "--json" in root_help.stdout
+
+    version = _run("--version")
+    _assert_ok("version", version)
+    assert len(version.stdout.strip().splitlines()) == 1
+    assert version.stdout.startswith("adanos-cli ")
+
     unknown = _run("wat")
     assert unknown.returncode == 2
     assert "hint:" in unknown.stderr
+
+    unknown_json = _run("--json", "not-a-command")
+    assert unknown_json.returncode == 2
+    assert unknown_json.stdout == ""
+    error_payload = json.loads(unknown_json.stderr)
+    assert error_payload["error"]["code"] == "usage_error"
+
+    nested_typo = _run("auth", "curent")
+    assert nested_typo.returncode == 2
+    assert "adanos auth current --help" in nested_typo.stderr
     return 0
 
 

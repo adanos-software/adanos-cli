@@ -63,7 +63,7 @@ python3 -m pip install -e ".[dev]"
 If you already have an API key:
 
 ```bash
-adanos login --api-key sk_live_xxx
+adanos login  # paste the key at the hidden prompt
 adanos whoami
 adanos doctor
 ```
@@ -108,8 +108,7 @@ adanos stock NVDA
 Persist a key locally:
 
 ```bash
-adanos login --api-key sk_live_xxx
-printf '%s\n' "$ADANOS_API_KEY" | adanos login --api-key-stdin
+adanos login  # interactive hidden prompt
 adanos login --api-key-file ~/.config/adanos-cli/key.txt
 ```
 
@@ -124,14 +123,14 @@ Start a new signup from the CLI:
 ```bash
 adanos onboard register --name "Jane Doe" --email "jane@example.com" --purpose "Trading research"
 # then redeem the one-time token from the verification email
-adanos onboard redeem --token kt_xxx --save
+adanos onboard redeem --save  # paste the one-time code at the hidden prompt
 ```
 
 Use profiles:
 
 ```bash
-adanos auth login --api-key sk_live_prod --profile prod
-adanos auth login --api-key sk_live_staging --profile staging
+adanos auth login --profile prod
+adanos auth login --profile staging
 adanos auth switch prod
 adanos auth current --json
 ```
@@ -175,6 +174,14 @@ Watchlists:
 adanos watchlist add core --asset stocks --symbols TSLA,NVDA,AAPL
 adanos watchlist report core --asset stocks
 adanos watch core --kind watchlist --asset stocks --refresh 60 --iterations 1
+```
+
+Destructive local operations prompt in an interactive terminal and require `--force` in scripts or JSON mode:
+
+```bash
+adanos auth logout --profile staging --force
+adanos watchlist delete core --force
+adanos config clear --force
 ```
 
 Raw endpoint access:
@@ -254,6 +261,18 @@ Tagged releases build standalone archives for:
 The repo also generates a Homebrew formula artifact for each tagged binary release and can publish it to `adanos-software/homebrew-tap` when `HOMEBREW_TAP_TOKEN` is configured.
 
 PyPI publishing also happens from this repo, not from the API monorepo.
+
+## Uninstall
+
+Use the matching installer:
+
+```bash
+pipx uninstall adanos-cli
+brew uninstall adanos-cli
+python3 -m pip uninstall adanos-cli
+```
+
+For the standalone installer, remove `~/.local/bin/adanos`. Local profiles and watchlists remain under `${XDG_CONFIG_HOME:-~/.config}/adanos-cli` until you explicitly remove them.
 
 ## Development
 

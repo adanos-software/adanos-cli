@@ -5,6 +5,28 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.33.0] - 2026-08-09
+
+### Added
+- Added a global, order-independent `--json` flag and structured JSON parser errors.
+- Added `--token-stdin` for secure one-time onboarding token input.
+- Added confirmation gates and `--force` for local profile, config, and watchlist deletion.
+- Added multi-ticker natural-language comparisons such as `adanos ask compare NVDA TSLA AAPL`.
+
+### Changed
+- Human market output now labels source activity precisely as mentions, trades, or tracked activity instead of the ambiguous `volume` label.
+- Consensus output now describes its confidence score as data confidence.
+- Explicit uppercase tickers in natural-language comparisons bypass unnecessary search calls before the four source comparisons.
+- `--version` remains a conventional one-line response unless JSON is explicitly requested.
+- Help and authentication examples now lead with hidden-prompt, stdin, or file-based secret input.
+- The repository CLI audit now tests the requested binary and covers global JSON placement, structured parser errors, nested typo hints, and conventional version output.
+- Text-mode token redemption now requires `--save` before consuming the one-time token; unsaved machine workflows must explicitly request JSON.
+
+### Fixed
+- Prevented onboarding identity, delivery tokens, natural-language queries, and help invocations from leaking into the local activity log.
+- Converted onboarding transport failures into concise structured errors instead of tracebacks.
+- Fixed nested typo suggestions so `adanos auth curent` suggests `adanos auth current`.
+
 ## [1.32.0] - 2026-08-09
 
 ### Changed

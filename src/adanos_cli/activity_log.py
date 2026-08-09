@@ -19,24 +19,111 @@ def _utc_now() -> str:
 
 
 def sanitize_argv(argv: list[str]) -> list[str]:
+    sensitive_value_flags = {
+        "--api-key",
+        "--api-key-file",
+        "--company-name",
+        "--email",
+        "--name",
+        "--output-path",
+        "--purpose",
+        "--recovery-url",
+        "--text",
+        "--token",
+    }
+    ask_value_flags = {"--base-url", "--days", "--from", "--output", "--to"}
+    ask_bare_flags = {"--json", "--no-color", "--no-input", "--plain", "--quiet"}
     sanitized: list[str] = []
     redact_next = False
-    for token in argv:
+    copy_next_ask_value = False
+    in_ask_query = False
+    ask_options_ended = False
+    ask_query_redacted = False
+    redact_later_positional = False
+    idx = 0
+    while idx < len(argv):
+        arg = argv[idx]
         if redact_next:
+            if arg.startswith("-"):
+                sanitized.append("<redacted>")
+                redact_next = False
+                redact_later_positional = True
+                idx += 1
+                continue
             sanitized.append("<redacted>")
             redact_next = False
+            idx += 1
             continue
-        if token in {"--api-key", "--api-key-file"}:
-            sanitized.append(token)
+        if redact_later_positional and not arg.startswith("-"):
+            sanitized.append("<redacted>")
+            idx += 1
+            continue
+
+        flag_name = arg.split("=", 1)[0]
+        sensitive_spelling = flag_name in sensitive_value_flags or (
+            flag_name.startswith("--")
+            and len(flag_name) >= 5
+            and any(flag.startswith(flag_name) for flag in sensitive_value_flags)
+        )
+        if sensitive_spelling and "=" not in arg:
+            if in_ask_query:
+                copy_next_ask_value = False
+            sanitized.append(arg)
             redact_next = True
+            idx += 1
             continue
-        if token.startswith("--api-key="):
-            sanitized.append("--api-key=<redacted>")
+        if sensitive_spelling:
+            if in_ask_query:
+                copy_next_ask_value = False
+            sanitized.append(f"{flag_name}=<redacted>")
+            idx += 1
             continue
-        if token.startswith("--api-key-file="):
-            sanitized.append("--api-key-file=<redacted>")
+
+        if arg == "ask" and not in_ask_query:
+            in_ask_query = True
+            sanitized.append(arg)
+            idx += 1
             continue
-        sanitized.append(token)
+        if in_ask_query:
+            if ask_options_ended:
+                if not ask_query_redacted:
+                    sanitized.append("<redacted>")
+                    ask_query_redacted = True
+                idx += 1
+                continue
+            if arg == "--":
+                ask_options_ended = True
+                if not ask_query_redacted:
+                    sanitized.append("<redacted>")
+                    ask_query_redacted = True
+                idx += 1
+                continue
+            if copy_next_ask_value:
+                sanitized.append(arg)
+                copy_next_ask_value = False
+                idx += 1
+                continue
+            if arg in ask_value_flags:
+                sanitized.append(arg)
+                copy_next_ask_value = True
+                idx += 1
+                continue
+            if arg in ask_bare_flags:
+                sanitized.append(arg)
+                idx += 1
+                continue
+            if any(arg.startswith(flag + "=") for flag in ask_value_flags):
+                sanitized.append(arg)
+                idx += 1
+                continue
+            if not ask_query_redacted:
+                sanitized.append("<redacted>")
+                ask_query_redacted = True
+            idx += 1
+            continue
+
+        sanitized.append(arg)
+        idx += 1
 
     if redact_next:
         sanitized.append("<redacted>")
