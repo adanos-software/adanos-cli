@@ -16,6 +16,7 @@ _STOPWORDS = {
     "WATCHLIST", "PORTFOLIO", "BRIEFING", "REPORT", "OVERVIEW", "SUMMARY",
     "SCAN", "SCANNER", "SCREENER", "SIGNAL", "SIGNALS", "MARKET",
     "PROFILE", "SETUP", "SETUPS", "FROM", "FOR",
+    "COMPARE", "TO", "VERSUS",
     "STARTER", "DAYTRADER", "SWING", "INVESTOR", "RESEARCH",
 }
 
@@ -61,6 +62,7 @@ class AskIntent:
     ]
     primary: str | None = None
     secondary: str | None = None
+    assets: tuple[str, ...] = ()
 
 
 def _extract_prefixed(text: str) -> list[str]:
@@ -130,6 +132,11 @@ def _is_common_crypto_symbol(symbol: str) -> bool:
     return symbol.upper().replace("$", "") in _COMMON_CRYPTO_SYMBOLS
 
 
+def is_common_crypto_symbol(symbol: str) -> bool:
+    """Return whether a symbol is unambiguously recognized as common crypto."""
+    return _is_common_crypto_symbol(symbol)
+
+
 def _canonical_crypto_symbol(token: str) -> str:
     normalized = token.upper().replace("$", "")
     return _CRYPTO_NAME_TO_SYMBOL.get(normalized, normalized)
@@ -181,6 +188,21 @@ def parse_ask_intent(text: str) -> AskIntent:
         if has_crypto_words or (_is_common_crypto_symbol(crypto_left) and _is_common_crypto_symbol(crypto_right)):
             return AskIntent("crypto_compare", crypto_left, crypto_right)
         return AskIntent("stock_compare", left, right)
+
+    if re.search(r"\bcompare\b", raw, re.IGNORECASE):
+        compare_text = re.split(r"\bcompare\b", raw, maxsplit=1, flags=re.IGNORECASE)[1]
+        candidates = [token for token in _extract_tokens(compare_text) if 1 <= len(token) <= 10]
+        if len(candidates) >= 2:
+            if len(candidates) == 2 and (
+                has_crypto_words or all(_is_common_crypto_symbol(token) for token in candidates)
+            ):
+                return AskIntent(
+                    "crypto_compare",
+                    _canonical_crypto_symbol(candidates[0]),
+                    _canonical_crypto_symbol(candidates[1]),
+                )
+            assets = tuple(candidates[:10])
+            return AskIntent("stock_compare", assets[0], assets[1], assets)
 
     if has_trending_words and has_crypto_words:
         return AskIntent("trending_report", "crypto")

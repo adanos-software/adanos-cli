@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import sys
 from pathlib import Path
 
@@ -81,6 +82,100 @@ def test_format_shell_api_key_status_for_paid_hobby() -> None:
     assert "hobby (paid)" in label
 
 
+def test_format_shell_prompt_shows_paid_monthly_requests_remaining() -> None:
+    prompt = cli_main._format_shell_prompt(
+        {
+            "account_type": "professional",
+            "monthly_limit": 2_500_000,
+            "monthly_remaining": 2_338_432,
+            "out_of_credits": False,
+        }
+    )
+
+    assert prompt == "adanos [2,338,432 requests left]> "
+
+
+def test_shell_quota_command_refreshes_fixed_prompt(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    key_value = "adanos_key_test"
+    snapshots = iter(
+        [
+            {
+                "account_type": "free",
+                "monthly_limit": 250,
+                "monthly_used": 130,
+                "monthly_remaining": 120,
+                "monthly_reset_at": "2026-08-30T09:52:27Z",
+            },
+            {
+                "account_type": "free",
+                "monthly_limit": 250,
+                "monthly_used": 131,
+                "monthly_remaining": 119,
+                "monthly_reset_at": "2026-08-30T09:52:27Z",
+            },
+        ]
+    )
+    monkeypatch.setattr(cli_main, "_resolve_shell_account_status", lambda *_args: next(snapshots))
+    monkeypatch.setattr(cli_main, "main", lambda *_args, **_kwargs: 0)
+
+    prompts: list[str] = []
+    inputs = iter(["quota", "quit"])
+
+    def fake_input(prompt: str = "") -> str:
+        prompts.append(prompt)
+        return next(inputs)
+
+    monkeypatch.setattr("builtins.input", fake_input)
+
+    rc = cli_main._run_shell(
+        "https://api.adanos.org",
+        has_api_key=True,
+        use_fullscreen=False,
+        api_key=key_value,
+    )
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert prompts == [
+        "adanos [120 requests left]> ",
+        "adanos [119 requests left]> ",
+    ]
+    assert "Monthly API requests: 131/250 used (119 remaining)" in out
+    assert "Monthly reset: 2026-08-30T09:52:27Z" in out
+
+
+def test_shell_commands_do_not_trigger_extra_quota_requests(tmp_path, monkeypatch) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+    key_value = "adanos_key_test"
+    account_lookups = 0
+
+    def resolve_account_status(*_args):
+        nonlocal account_lookups
+        account_lookups += 1
+        return {
+            "account_type": "free",
+            "monthly_limit": 250,
+            "monthly_used": 130,
+            "monthly_remaining": 120,
+        }
+
+    monkeypatch.setattr(cli_main, "_resolve_shell_account_status", resolve_account_status)
+    monkeypatch.setattr(cli_main, "main", lambda *_args, **_kwargs: 0)
+    inputs = iter(["stock TSLA", "quit"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(inputs))
+
+    rc = cli_main._run_shell(
+        "https://api.adanos.org",
+        has_api_key=True,
+        use_fullscreen=False,
+        api_key=key_value,
+    )
+
+    assert rc == 0
+    assert account_lookups == 1
+
+
 def test_shell_command_renders_header_and_quits(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
 
@@ -94,13 +189,49 @@ def test_shell_command_renders_header_and_quits(tmp_path, monkeypatch, capsys) -
     out = capsys.readouterr().out
 
     assert rc == 0
-    assert "Adanos Market Sentiment CLI v" in out
+    assert "ADANOS  Market Sentiment CLI v" in out
     assert "cwd:" in out
     assert "api:" in out
     assert "Quick Start" in out
     assert "/onboard wizard" in out
     assert "Type /help for full command catalog." in out
     assert "Guided Help" not in out
+
+
+def test_shell_header_uses_clean_wordmark_without_inline_image(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(cli_main, "_supports_color", lambda: False)
+
+    cli_main._print_shell_header("https://api.adanos.org", has_api_key=False)
+    out = capsys.readouterr().out
+
+    assert out.startswith("ADANOS  Market Sentiment CLI v1.33.0\n")
+    assert "account: not configured  |  api: https://api.adanos.org" in out
+    assert "cwd:" in out
+    assert "█" not in out
+    assert "\033[" not in out
+
+
+def test_inline_logo_protocol_is_conservative() -> None:
+    supported = {"TERM_PROGRAM": "iTerm.app", "TERM_PROGRAM_VERSION": "3.5.14"}
+
+    assert cli_main._inline_logo_protocol(supported) == "iterm2"
+    assert cli_main._inline_logo_protocol({"TERM_PROGRAM": "iTerm.app"}) is None
+    assert cli_main._inline_logo_protocol({"TERM_PROGRAM": "iTerm.app", "TERM_PROGRAM_VERSION": "3.4.23"}) is None
+    assert cli_main._inline_logo_protocol({"TERM_PROGRAM": "iTerm.app", "TERM_PROGRAM_VERSION": "3.5.0beta1"}) is None
+    assert cli_main._inline_logo_protocol({**supported, "NO_COLOR": "1"}) is None
+    assert cli_main._inline_logo_protocol({**supported, "TMUX": "/tmp/tmux"}) is None
+    assert cli_main._inline_logo_protocol({"TERM_PROGRAM": "Apple_Terminal"}) is None
+
+
+def test_iterm_inline_image_sequence_contains_bundled_svg() -> None:
+    image_data = cli_main._brand_mark_svg_bytes()
+    sequence = cli_main._iterm_inline_image_sequence(image_data)
+    encoded_image = sequence.rsplit(":", 1)[1].removesuffix("\a")
+
+    assert image_data.startswith(b"<?xml")
+    assert "File=inline=1" in sequence
+    assert "width=12;height=6" in sequence
+    assert base64.b64decode(encoded_image) == image_data
 
 
 def test_shell_help_shows_command_catalog(tmp_path, monkeypatch, capsys) -> None:
@@ -118,9 +249,11 @@ def test_shell_help_shows_command_catalog(tmp_path, monkeypatch, capsys) -> None
     assert rc == 0
     assert "Guided Help" in out
     assert "/onboard wizard" in out
-    assert "/trending --platform" in out
-    assert "/stats --platform" in out
+    assert "/trending stocks|crypto" in out
+    assert "/compare ASSET ASSET" in out
+    assert "/stats [--platform ...]" in out
     assert "/account" in out
+    assert "/quota" in out
 
 
 def test_shell_history_and_retry(tmp_path, monkeypatch, capsys) -> None:

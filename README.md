@@ -63,7 +63,7 @@ python3 -m pip install -e ".[dev]"
 If you already have an API key:
 
 ```bash
-adanos login --api-key sk_live_xxx
+adanos login  # paste the key at the hidden prompt
 adanos whoami
 adanos doctor
 ```
@@ -71,9 +71,12 @@ adanos doctor
 First market checks:
 
 ```bash
+adanos stock TSLA
+adanos compare NVDA TSLA AAPL
+adanos trending stocks --limit 5
 adanos consensus TSLA
 adanos explain TSLA --profile investor
-adanos scan --asset stocks --style daytrader --top 10
+adanos scan stocks --style daytrader --top 10
 ```
 
 Crypto:
@@ -97,6 +100,10 @@ Explicit interactive shell:
 adanos shell
 ```
 
+The shell prompt shows the latest monthly API request balance. Run `/quota` to
+refresh it on demand; normal commands do not spend an extra request on quota
+lookups.
+
 One-shot command mode:
 
 ```bash
@@ -108,8 +115,7 @@ adanos stock NVDA
 Persist a key locally:
 
 ```bash
-adanos login --api-key sk_live_xxx
-printf '%s\n' "$ADANOS_API_KEY" | adanos login --api-key-stdin
+adanos login  # interactive hidden prompt
 adanos login --api-key-file ~/.config/adanos-cli/key.txt
 ```
 
@@ -124,14 +130,14 @@ Start a new signup from the CLI:
 ```bash
 adanos onboard register --name "Jane Doe" --email "jane@example.com" --purpose "Trading research"
 # then redeem the one-time token from the verification email
-adanos onboard redeem --token kt_xxx --save
+adanos onboard redeem --save  # paste the one-time code at the hidden prompt
 ```
 
 Use profiles:
 
 ```bash
-adanos auth login --api-key sk_live_prod --profile prod
-adanos auth login --api-key sk_live_staging --profile staging
+adanos auth login --profile prod
+adanos auth login --profile staging
 adanos auth switch prod
 adanos auth current --json
 ```
@@ -163,6 +169,34 @@ Cross-platform consensus:
 adanos consensus TSLA
 ```
 
+Compare stocks across News, Reddit, X/Twitter, and Polymarket:
+
+```bash
+adanos compare NVDA TSLA AAPL
+```
+
+Common crypto symbols are detected automatically:
+
+```bash
+adanos compare BTC ETH
+```
+
+Search and trending use all relevant sources by default. Add `--platform` only when you want one source:
+
+```bash
+adanos search Tesla
+adanos trending stocks --limit 5
+adanos trending crypto --limit 10
+adanos search Tesla --platform news-stocks
+```
+
+Sentiment screener:
+
+```bash
+adanos scan stocks --style daytrader --top 10
+adanos scan crypto --min-buzz 60 --min-volume 50
+```
+
 Narrative explanation:
 
 ```bash
@@ -172,9 +206,17 @@ adanos explain TSLA --profile investor
 Watchlists:
 
 ```bash
-adanos watchlist add core --asset stocks --symbols TSLA,NVDA,AAPL
+adanos watchlist add core --asset stocks --symbols TSLA NVDA AAPL
 adanos watchlist report core --asset stocks
 adanos watch core --kind watchlist --asset stocks --refresh 60 --iterations 1
+```
+
+Destructive local operations prompt in an interactive terminal and require `--force` in scripts or JSON mode:
+
+```bash
+adanos auth logout --profile staging --force
+adanos watchlist delete core --force
+adanos config clear --force
 ```
 
 Raw endpoint access:
@@ -254,6 +296,18 @@ Tagged releases build standalone archives for:
 The repo also generates a Homebrew formula artifact for each tagged binary release and can publish it to `adanos-software/homebrew-tap` when `HOMEBREW_TAP_TOKEN` is configured.
 
 PyPI publishing also happens from this repo, not from the API monorepo.
+
+## Uninstall
+
+Use the matching installer:
+
+```bash
+pipx uninstall adanos-cli
+brew uninstall adanos-cli
+python3 -m pip uninstall adanos-cli
+```
+
+For the standalone installer, remove `~/.local/bin/adanos`. Local profiles and watchlists remain under `${XDG_CONFIG_HOME:-~/.config}/adanos-cli` until you explicitly remove them.
 
 ## Development
 

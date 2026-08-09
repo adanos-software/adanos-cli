@@ -23,7 +23,7 @@ def _isolate_config(tmp_path: Path, monkeypatch) -> None:
 def test_watchlist_crud_flow(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
 
-    assert cli_main.main(["watchlist", "add", "core", "--asset", "stocks", "--symbols", "MSFT,AAPL", "--json"]) == 0
+    assert cli_main.main(["watchlist", "add", "core", "--asset", "stocks", "--symbols", "MSFT", "AAPL", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["kind"] == "watchlist_state"
     assert payload["command"] == "watchlist"
@@ -56,7 +56,7 @@ def test_watchlist_crud_flow(tmp_path, monkeypatch, capsys) -> None:
     assert "watchlists" in payload
     assert "core" in payload
 
-    assert cli_main.main(["watchlist", "delete", "core", "--json"]) == 0
+    assert cli_main.main(["watchlist", "delete", "core", "--force", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["kind"] == "watchlist_delete_result"
     assert payload["command"] == "watchlist"

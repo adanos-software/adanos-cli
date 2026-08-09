@@ -7,6 +7,7 @@ from pathlib import Path
 
 
 import adanos_cli.config as cli_config
+import adanos_cli.main as cli_main
 from adanos_cli.activity_log import _command_name, append_activity, read_activity, sanitize_argv
 
 
@@ -48,6 +49,100 @@ def test_sanitize_argv_redacts_api_key_file_value() -> None:
 
 def test_sanitize_argv_redacts_missing_api_key_value() -> None:
     assert sanitize_argv(["--api-key"]) == ["--api-key", "<redacted>"]
+
+
+def test_sanitize_argv_redacts_onboarding_identity_and_token() -> None:
+    argv = [
+        "onboard",
+        "register",
+        "--name",
+        "Alex Example",
+        "--email=alex@example.com",
+        "--purpose",
+        "private trading research",
+        "--company-name",
+        "Example Capital",
+    ]
+    assert sanitize_argv(argv) == [
+        "onboard",
+        "register",
+        "--name",
+        "<redacted>",
+        "--email=<redacted>",
+        "--purpose",
+        "<redacted>",
+        "--company-name",
+        "<redacted>",
+    ]
+    assert sanitize_argv(["onboard", "redeem", "--token=kt_private"]) == [
+        "onboard",
+        "redeem",
+        "--token=<redacted>",
+    ]
+
+
+def test_sanitize_argv_redacts_sensitive_option_abbreviations() -> None:
+    assert sanitize_argv(["onboard", "register", "--ema", "alex@example.com", "--purp=private"]) == [
+        "onboard",
+        "register",
+        "--ema",
+        "<redacted>",
+        "--purp=<redacted>",
+    ]
+
+
+def test_sanitize_argv_redacts_positional_after_missing_sensitive_value() -> None:
+    assert sanitize_argv(["onboard", "redeem", "--token", "--save", "kt_private"]) == [
+        "onboard",
+        "redeem",
+        "--token",
+        "<redacted>",
+        "<redacted>",
+    ]
+
+
+def test_sanitize_argv_keeps_redacting_after_intervening_option_value() -> None:
+    assert sanitize_argv(["onboard", "redeem", "--token", "--output", "text", "kt_private"]) == [
+        "onboard",
+        "redeem",
+        "--token",
+        "<redacted>",
+        "<redacted>",
+        "<redacted>",
+    ]
+
+
+def test_sanitize_argv_does_not_repeat_dash_prefixed_sensitive_value() -> None:
+    sanitized = sanitize_argv(["onboard", "register", "--purpose", "-confidential"])
+
+    assert sanitized == ["onboard", "register", "--purpose", "<redacted>"]
+    assert "-confidential" not in sanitized
+
+
+def test_sensitive_option_after_missing_ask_value_does_not_expose_query() -> None:
+    assert sanitize_argv(["ask", "--days", "--token", "kt_private", "confidential"]) == [
+        "ask",
+        "--days",
+        "--token",
+        "<redacted>",
+        "<redacted>",
+    ]
+
+
+def test_sanitize_argv_redacts_natural_language_query() -> None:
+    assert sanitize_argv(["ask", "compare", "my", "confidential", "positions", "--days", "7"]) == [
+        "ask",
+        "<redacted>",
+        "--days",
+        "7",
+    ]
+
+
+def test_sanitize_argv_redacts_dash_prefixed_query_after_separator() -> None:
+    assert sanitize_argv(["ask", "--", "--confidential-acquisition", "--days", "7"]) == [
+        "ask",
+        "<redacted>",
+    ]
 
 
 def test_command_name_skips_split_global_flag_values() -> None:
@@ -110,3 +205,19 @@ def test_append_activity_marks_failed_entries(tmp_path, monkeypatch) -> None:
     assert entry["command"] == "export"
     assert entry["ok"] is False
     assert entry["exit_code"] == 2
+
+
+def test_help_does_not_create_activity_entry(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+
+    assert cli_main.main(["stock", "--help"]) == 0
+    capsys.readouterr()
+
+    assert read_activity(limit=5) == []
+
+
+def test_positional_help_after_terminator_remains_activity(tmp_path, monkeypatch, capsys) -> None:
+    _isolate_config(tmp_path, monkeypatch)
+
+    assert cli_main._should_record_activity(["ask", "--", "--help"])
+    assert cli_main._should_record_activity(["ask", "--", "--version"])

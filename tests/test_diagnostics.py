@@ -107,7 +107,7 @@ def test_doctor_json_fails_without_key(tmp_path, monkeypatch, capsys) -> None:
     assert payload["ok"] is False
     checks = {check["name"]: check for check in payload["checks"]}
     assert checks["Credentials"]["status"] == "fail"
-    assert checks["Credentials"]["next_step"] == "Run: adanos login --api-key sk_live_xxx"
+    assert checks["Credentials"]["next_step"] == "Run: adanos login"
     assert checks["API Validation"]["status"] == "fail"
     assert checks["API Validation"]["detail"] == "Skipped because credentials are not configured."
 
@@ -245,6 +245,13 @@ def test_main_explicit_output_text_prevents_pipe_auto_json(monkeypatch, capsys) 
     assert rc == 0
     assert out.startswith("CLI capabilities")
     assert not out.lstrip().startswith("{")
+
+
+def test_output_mode_flags_after_option_terminator_remain_positional() -> None:
+    raw_argv = ["ask", "--", "--json", "--output", "text"]
+
+    assert cli_main._explicit_output_mode(raw_argv) is None
+    assert cli_main._normalize_global_cli_flags(raw_argv) == raw_argv
 
 
 def test_network_errors_are_user_friendly() -> None:
