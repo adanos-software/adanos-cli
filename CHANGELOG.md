@@ -15,6 +15,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 - Human market output now labels source activity precisely as mentions, trades, or tracked activity instead of the ambiguous `volume` label.
+- The interactive shell now renders the official stacked Adanos brand mark with terminal-safe color and monochrome fallbacks.
 - Consensus output now describes its confidence score as data confidence.
 - Explicit uppercase tickers in natural-language comparisons bypass unnecessary search calls before the four source comparisons.
 - `--version` remains a conventional one-line response unless JSON is explicitly requested.

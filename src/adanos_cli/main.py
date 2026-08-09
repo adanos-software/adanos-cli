@@ -102,6 +102,20 @@ ROOT_COMMANDS = (
     "account",
 )
 
+SHELL_LOGO_LINES = (
+    ("          ______          ", "yellow"),
+    ("      ___/      \\___      ", "yellow"),
+    ("   __/              \\__   ", "orange"),
+    ("   \\__              __/   ", "orange"),
+    ("      \\____________/      ", "orange"),
+    ("    __/            \\__    ", "dark_gray"),
+    ("    \\________________/    ", "dark_gray"),
+    ("    __/            \\__    ", "gray"),
+    ("    \\________________/    ", "gray"),
+    ("    __/            \\__    ", "light_gray"),
+    ("    \\________________/    ", "light_gray"),
+)
+
 
 class AdanosArgumentParser(argparse.ArgumentParser):
     _json_errors = False
@@ -198,6 +212,9 @@ def _style(text: str, *, fg: str | None = None, bold: bool = False, dim: bool = 
         "cyan": "36",
         "white": "37",
         "orange": "38;5;209",
+        "dark_gray": "38;5;240",
+        "gray": "38;5;246",
+        "light_gray": "38;5;252",
     }
     codes: list[str] = []
     if bold:
@@ -278,13 +295,6 @@ def _print_update_notice_if_available() -> None:
 
 
 def _print_shell_header(base_url: str, *, has_api_key: bool, api_key_status: str | None = None) -> None:
-    logo_lines = [
-        "      /\\      ",
-        "     /  \\     ",
-        "    / /\\ \\    ",
-        "   / ____ \\   ",
-        "  /_/    \\_\\  ",
-    ]
     key_status = api_key_status if api_key_status is not None else (
         _style("configured", fg="green", bold=True) if has_api_key else _style("not configured", fg="red", bold=True)
     )
@@ -295,11 +305,14 @@ def _print_shell_header(base_url: str, *, has_api_key: bool, api_key_status: str
         f"api_key: {key_status}",
     ]
 
-    logo_width = max(len(line) for line in logo_lines)
-    row_count = max(len(logo_lines), len(details))
+    logo_width = max(len(line) for line, _color in SHELL_LOGO_LINES)
+    row_count = max(len(SHELL_LOGO_LINES), len(details))
     for idx in range(row_count):
-        left_raw = logo_lines[idx] if idx < len(logo_lines) else " " * logo_width
-        left = _style(left_raw, fg="orange", bold=True)
+        if idx < len(SHELL_LOGO_LINES):
+            left_raw, color = SHELL_LOGO_LINES[idx]
+            left = _style(left_raw, fg=color, bold=idx < 5)
+        else:
+            left = " " * logo_width
         right = details[idx] if idx < len(details) else ""
         print(f"{left}  {right}")
 

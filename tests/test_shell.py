@@ -103,6 +103,18 @@ def test_shell_command_renders_header_and_quits(tmp_path, monkeypatch, capsys) -
     assert "Guided Help" not in out
 
 
+def test_shell_header_uses_stacked_adanos_brand_mark(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(cli_main, "_supports_color", lambda: False)
+
+    cli_main._print_shell_header("https://api.adanos.org", has_api_key=False)
+    out = capsys.readouterr().out
+
+    assert "      ___/      \\___" in out
+    assert out.count("\\________________/") == 3
+    assert "   / ____ \\" not in out
+    assert "\033[" not in out
+
+
 def test_shell_help_shows_command_catalog(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
 
