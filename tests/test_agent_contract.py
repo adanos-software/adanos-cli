@@ -283,6 +283,23 @@ def test_endpoint_api_error_payload_preserves_integer_location(monkeypatch) -> N
         )
 
 
+def test_api_149_structured_error_context_is_actionable() -> None:
+    assert cli_main._format_api_detail(
+        {
+            "error": "too_many_tickers",
+            "message": "Too many tickers.",
+            "max_items": 10,
+        }
+    ) == "Too many tickers. (maximum: 10)"
+    assert cli_main._format_api_detail(
+        {
+            "error": "data_unavailable",
+            "message": "Requested period predates public data.",
+            "available_since": "2025-01-01",
+        }
+    ) == "Requested period predates public data. (available since: 2025-01-01)"
+
+
 def test_period_help_uses_plain_inclusive_labels(capsys) -> None:
     assert cli_main.main(["stock", "--help"]) == 0
 

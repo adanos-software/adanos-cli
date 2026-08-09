@@ -894,7 +894,15 @@ def _format_api_detail(detail: Any) -> str | None:
     if isinstance(detail, dict):
         message = detail.get("message") or detail.get("error") or detail.get("msg")
         if isinstance(message, str) and message.strip():
-            return message.strip()
+            suffixes: list[str] = []
+            max_items = detail.get("max_items")
+            if isinstance(max_items, int):
+                suffixes.append(f"maximum: {max_items}")
+            available_since = detail.get("available_since")
+            if isinstance(available_since, str) and available_since.strip():
+                suffixes.append(f"available since: {available_since.strip()}")
+            suffix = f" ({'; '.join(suffixes)})" if suffixes else ""
+            return message.strip() + suffix
     if isinstance(detail, list):
         messages: list[str] = []
         for item in detail:

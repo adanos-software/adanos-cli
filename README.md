@@ -193,6 +193,7 @@ adanos endpoint call sentiment.analyze --text "TSLA looks like a short squeeze s
 
 Polymarket endpoint output includes both `market_count` for selected-window breadth and `current_market_count` for live-only active-market breadth.
 For API `1.45.1+`, Polymarket `top_mentions` in stock detail output are representative sentiment evidence, not a liquidity leaderboard. When market status is available, the CLI shows `market_status` alongside the evidence. For API `1.46.0+`, human summaries prefer `daily_trend[].bullish_pct` and `daily_trend[].bearish_pct` over deprecated positive/negative/neutral count fields.
+Polymarket `unique_traders` can be `null` when retained wallet-level trades do not fully cover the requested window. Across platforms, each `trend_history` value represents its own UTC calendar day; the current partial day's value is not expected to equal the top-level period `buzz_score`.
 
 Period-capable commands and endpoint calls accept `--from YYYY-MM-DD` and `--to YYYY-MM-DD` as inclusive UTC date windows. `--days N` remains available for v1 compatibility, but is legacy; combining `--from`, `--to` and `--days` returns API validation error `422`. Search commands are the exception: they accept only `--limit` and use the API-managed recent summary window.
 
