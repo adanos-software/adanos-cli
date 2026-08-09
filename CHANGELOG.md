@@ -12,6 +12,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Added `--token-stdin` for secure one-time onboarding token input.
 - Added confirmation gates and `--force` for local profile, config, and watchlist deletion.
 - Added direct multi-asset comparisons such as `adanos compare NVDA TSLA AAPL`; natural-language comparisons remain available through `adanos ask`.
+- Added a fixed shell prompt with monthly API requests remaining and an explicit `/quota` refresh command.
 
 ### Changed
 - Human market output now labels source activity precisely as mentions, trades, or tracked activity instead of the ambiguous `volume` label.

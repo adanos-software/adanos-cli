@@ -350,7 +350,7 @@ def _print_shell_quickstart(*, has_api_key: bool) -> None:
         print("  Stock report: /stock TSLA")
         print("  Crypto report: /crypto BTC/ETH")
         print("  Screener: /scan --asset stocks --style starter")
-        print("  Plan/Credits: /account")
+        print("  Requests left: /quota  |  Full account: /account")
     else:
         print("  1) Configure API key: /onboard wizard")
         print("  2) Or set existing key: /login  # paste at the hidden prompt")
@@ -421,6 +421,7 @@ def _print_shell_help(*, has_api_key: bool) -> None:
     print(_style("Shell Controls", fg="cyan", bold=True))
     print("  /help           show this guide")
     print("  /examples       show common stock, crypto, endpoint examples")
+    print("  /quota          refresh monthly API requests remaining")
     print("  /history        show recent commands")
     print("  /retry          rerun the most recent command")
     print("  /clear          clear screen and redraw header")
@@ -469,7 +470,37 @@ def _resolve_shell_fullscreen(flag_value: bool | None) -> bool:
 
 
 def _is_shell_meta_command(token: str) -> bool:
-    return token in {"help", "examples", "history", "retry", "exit", "quit", "clear"}
+    return token in {"help", "examples", "quota", "history", "retry", "exit", "quit", "clear"}
+
+
+def _format_shell_prompt(account_status: dict[str, Any] | None) -> str:
+    if not account_status:
+        return "adanos> "
+
+    monthly_remaining = account_status.get("monthly_remaining")
+    if isinstance(monthly_remaining, int):
+        return f"adanos [{monthly_remaining:,} requests left]> "
+    if account_status.get("monthly_limit") is None:
+        return "adanos [unlimited requests]> "
+    return "adanos> "
+
+
+def _print_shell_quota(account_status: dict[str, Any]) -> None:
+    monthly_limit = account_status.get("monthly_limit")
+    monthly_used = account_status.get("monthly_used")
+    monthly_remaining = account_status.get("monthly_remaining")
+
+    if monthly_limit is None:
+        print("Monthly API requests: unlimited")
+        if isinstance(monthly_used, int):
+            print(f"Monthly used: {monthly_used:,}")
+    else:
+        used_label = f"{monthly_used:,}" if isinstance(monthly_used, int) else "unknown"
+        remaining_label = f"{monthly_remaining:,}" if isinstance(monthly_remaining, int) else "unknown"
+        print(f"Monthly API requests: {used_label}/{monthly_limit:,} used ({remaining_label} remaining)")
+
+    if account_status.get("monthly_reset_at"):
+        print(f"Monthly reset: {account_status['monthly_reset_at']}")
 
 
 def _is_cli_command(token: str) -> bool:
@@ -575,7 +606,7 @@ def _run_shell(base_url: str, *, has_api_key: bool, use_fullscreen: bool, api_ke
 
         while True:
             try:
-                raw = input("adanos-cli> ").strip()
+                raw = input(_format_shell_prompt(account_status)).strip()
             except EOFError:
                 print("\nExiting ADANOS CLI.")
                 return 0
@@ -598,6 +629,21 @@ def _run_shell(base_url: str, *, has_api_key: bool, use_fullscreen: bool, api_ke
                 continue
             if command == "examples":
                 _print_shell_examples()
+                continue
+            if command == "quota":
+                if not has_api_key or api_key is None:
+                    print_err("quota_unavailable: configure an API key with `adanos login`")
+                    continue
+                refreshed_status = _resolve_shell_account_status(base_url, api_key)
+                if refreshed_status is None:
+                    print_err("quota_unavailable: could not refresh; previous snapshot retained")
+                    continue
+                account_status = refreshed_status
+                api_key_status = _format_shell_api_key_status(
+                    has_api_key=has_api_key,
+                    account_status=account_status,
+                )
+                _print_shell_quota(account_status)
                 continue
             if command == "history":
                 entries = load_history(limit=10)

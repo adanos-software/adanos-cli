@@ -100,6 +100,10 @@ Explicit interactive shell:
 adanos shell
 ```
 
+The shell prompt shows the latest monthly API request balance. Run `/quota` to
+refresh it on demand; normal commands do not spend an extra request on quota
+lookups.
+
 One-shot command mode:
 
 ```bash
