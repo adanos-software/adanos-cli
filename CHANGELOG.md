@@ -5,6 +5,13 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [1.32.0] - 2026-08-09
+
+### Changed
+- Synced CLI error and semantic guidance with Adanos Market Sentiment API `1.49.0`.
+- Structured compare-limit errors now show `max_items`, and data-availability errors show `available_since`.
+- Documented nullable Polymarket `unique_traders` and stable per-UTC-day `trend_history` semantics.
+
 ## [1.31.0] - 2026-07-03
 
 ### Added
