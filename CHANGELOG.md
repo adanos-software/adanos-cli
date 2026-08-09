@@ -5,7 +5,7 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
-## [Unreleased]
+## [1.32.0] - 2026-08-09
 
 ### Changed
 - Synced CLI error and semantic guidance with Adanos Market Sentiment API `1.49.0`.
