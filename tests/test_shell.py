@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import sys
 from pathlib import Path
 
@@ -94,7 +95,7 @@ def test_shell_command_renders_header_and_quits(tmp_path, monkeypatch, capsys) -
     out = capsys.readouterr().out
 
     assert rc == 0
-    assert "Adanos Market Sentiment CLI v" in out
+    assert "ADANOS  Market Sentiment CLI v" in out
     assert "cwd:" in out
     assert "api:" in out
     assert "Quick Start" in out
@@ -103,26 +104,40 @@ def test_shell_command_renders_header_and_quits(tmp_path, monkeypatch, capsys) -
     assert "Guided Help" not in out
 
 
-def test_shell_header_uses_stacked_adanos_brand_mark(monkeypatch, capsys) -> None:
+def test_shell_header_uses_clean_wordmark_without_inline_image(monkeypatch, capsys) -> None:
     monkeypatch.setattr(cli_main, "_supports_color", lambda: False)
 
     cli_main._print_shell_header("https://api.adanos.org", has_api_key=False)
     out = capsys.readouterr().out
 
-    assert "▄▄██████████████████████████▄▄" in out
-    assert out.count("██████▄▄▄            ▄▄▄██████") == 3
-    assert out.count("▀▀▀██████▄▄▄▄▄▄██████▀▀▀") == 3
-    assert "################" not in out
-    lines = out.splitlines()
-    assert lines[5].endswith("Adanos Market Sentiment CLI v1.33.0")
-    assert "   / ____ \\" not in out
+    assert out.startswith("ADANOS  Market Sentiment CLI v1.33.0\n")
+    assert "account: not configured  |  api: https://api.adanos.org" in out
+    assert "cwd:" in out
+    assert "█" not in out
     assert "\033[" not in out
 
 
-def test_shell_logo_has_ascii_fallback_for_limited_output_encoding() -> None:
-    assert cli_main._shell_logo_lines("utf-8") == cli_main.SHELL_LOGO_LINES
-    assert cli_main._shell_logo_lines("ascii") == cli_main.SHELL_LOGO_ASCII_LINES
-    assert all(line.isascii() for line, _color in cli_main.SHELL_LOGO_ASCII_LINES)
+def test_inline_logo_protocol_is_conservative() -> None:
+    supported = {"TERM_PROGRAM": "iTerm.app", "TERM_PROGRAM_VERSION": "3.5.14"}
+
+    assert cli_main._inline_logo_protocol(supported) == "iterm2"
+    assert cli_main._inline_logo_protocol({"TERM_PROGRAM": "iTerm.app"}) is None
+    assert cli_main._inline_logo_protocol({"TERM_PROGRAM": "iTerm.app", "TERM_PROGRAM_VERSION": "3.4.23"}) is None
+    assert cli_main._inline_logo_protocol({"TERM_PROGRAM": "iTerm.app", "TERM_PROGRAM_VERSION": "3.5.0beta1"}) is None
+    assert cli_main._inline_logo_protocol({**supported, "NO_COLOR": "1"}) is None
+    assert cli_main._inline_logo_protocol({**supported, "TMUX": "/tmp/tmux"}) is None
+    assert cli_main._inline_logo_protocol({"TERM_PROGRAM": "Apple_Terminal"}) is None
+
+
+def test_iterm_inline_image_sequence_contains_bundled_svg() -> None:
+    image_data = cli_main._brand_mark_svg_bytes()
+    sequence = cli_main._iterm_inline_image_sequence(image_data)
+    encoded_image = sequence.rsplit(":", 1)[1].removesuffix("\a")
+
+    assert image_data.startswith(b"<?xml")
+    assert "File=inline=1" in sequence
+    assert "width=12;height=6" in sequence
+    assert base64.b64decode(encoded_image) == image_data
 
 
 def test_shell_help_shows_command_catalog(tmp_path, monkeypatch, capsys) -> None:

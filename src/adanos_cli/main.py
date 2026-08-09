@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import difflib
 import json
@@ -14,6 +15,7 @@ import time
 from argparse import Namespace
 from datetime import datetime, timezone
 from getpass import getpass
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -102,27 +104,9 @@ ROOT_COMMANDS = (
     "account",
 )
 
-SHELL_LOGO_LINES = (
-    ("           ▄▄████▄▄           ", "yellow"),
-    ("     ▄▄▄██████████████▄▄▄     ", "yellow"),
-    ("▄▄██████████████████████████▄▄", "orange"),
-    ("▀▀██████████████████████████▀▀", "orange"),
-    ("     ▀▀▀██████████████▀▀▀     ", "orange"),
-    ("           ▀▀████▀▀           ", "orange"),
-    ("██████▄▄▄            ▄▄▄██████", "dark_gray"),
-    ("   ▀▀▀██████▄▄▄▄▄▄██████▀▀▀   ", "dark_gray"),
-    ("         ▀▀▀██████▀▀▀         ", "dark_gray"),
-    ("██████▄▄▄            ▄▄▄██████", "gray"),
-    ("   ▀▀▀██████▄▄▄▄▄▄██████▀▀▀   ", "gray"),
-    ("         ▀▀▀██████▀▀▀         ", "gray"),
-    ("██████▄▄▄            ▄▄▄██████", "light_gray"),
-    ("   ▀▀▀██████▄▄▄▄▄▄██████▀▀▀   ", "light_gray"),
-    ("         ▀▀▀██████▀▀▀         ", "light_gray"),
-)
-SHELL_LOGO_ASCII_LINES = (
-    ("     [ ADANOS ]     ", "orange"),
-    ("  STOCKS + CRYPTO  ", "gray"),
-)
+ITERM_LOGO_WIDTH = 12
+ITERM_LOGO_HEIGHT = 6
+MIN_ITERM_SVG_VERSION = (3, 5, 0)
 
 
 class AdanosArgumentParser(argparse.ArgumentParser):
@@ -220,9 +204,6 @@ def _style(text: str, *, fg: str | None = None, bold: bool = False, dim: bool = 
         "cyan": "36",
         "white": "37",
         "orange": "38;5;209",
-        "dark_gray": "38;5;240",
-        "gray": "38;5;246",
-        "light_gray": "38;5;252",
     }
     codes: list[str] = []
     if bold:
@@ -303,40 +284,63 @@ def _print_update_notice_if_available() -> None:
 
 
 def _print_shell_header(base_url: str, *, has_api_key: bool, api_key_status: str | None = None) -> None:
+    _print_inline_brand_mark()
     key_status = api_key_status if api_key_status is not None else (
         _style("configured", fg="green", bold=True) if has_api_key else _style("not configured", fg="red", bold=True)
     )
-    details = [
-        f"{_style('Adanos Market Sentiment CLI', fg='cyan', bold=True)} {_style(f'v{__version__}', fg='magenta', bold=True)}",
-        f"cwd: {_style(str(Path.cwd()), fg='white')}",
-        f"api: {_style(base_url, fg='blue')}",
-        f"api_key: {key_status}",
-    ]
-
-    logo_lines = _shell_logo_lines()
-    logo_width = max(len(line) for line, _color in logo_lines)
-    detail_offset = 5 if logo_lines is SHELL_LOGO_LINES else len(logo_lines)
-    row_count = max(len(logo_lines), detail_offset + len(details))
-    for idx in range(row_count):
-        if idx < len(logo_lines):
-            left_raw, color = logo_lines[idx]
-            left = _style(left_raw, fg=color, bold=idx < 4)
-        else:
-            left = " " * logo_width
-        detail_idx = idx - detail_offset
-        right = details[detail_idx] if 0 <= detail_idx < len(details) else ""
-        print(f"{left}  {right}")
-
+    print(
+        f"{_style('ADANOS', fg='orange', bold=True)}  "
+        f"{_style('Market Sentiment CLI', fg='cyan', bold=True)} "
+        f"{_style(f'v{__version__}', fg='magenta', bold=True)}"
+    )
+    print(f"account: {key_status}  |  api: {_style(base_url, fg='blue')}")
+    print(f"cwd: {_style(str(Path.cwd()), fg='white', dim=True)}")
     print(_style("-" * 68, dim=True))
 
 
-def _shell_logo_lines(encoding: str | None = None) -> tuple[tuple[str, str], ...]:
-    output_encoding = encoding or getattr(sys.stdout, "encoding", None) or "utf-8"
+def _inline_logo_protocol(environ: dict[str, str] | None = None) -> str | None:
+    env = os.environ if environ is None else environ
+    if env.get("NO_COLOR") is not None or env.get("TMUX"):
+        return None
+    if env.get("TERM_PROGRAM") == "iTerm.app" and _supports_iterm_svg(env.get("TERM_PROGRAM_VERSION")):
+        return "iterm2"
+    return None
+
+
+def _supports_iterm_svg(version: str | None) -> bool:
+    if version is None:
+        return False
+    match = re.fullmatch(r"\s*(\d+)\.(\d+)\.(\d+)(?:\.\d+)?\s*", version)
+    if match is None:
+        return False
+    return tuple(int(component) for component in match.groups()) >= MIN_ITERM_SVG_VERSION
+
+
+def _brand_mark_svg_bytes() -> bytes:
+    return resources.files("adanos_cli.assets").joinpath("adanos-mark-color.svg").read_bytes()
+
+
+def _iterm_inline_image_sequence(image_data: bytes) -> str:
+    encoded_name = base64.b64encode(b"adanos-mark-color.svg").decode("ascii")
+    encoded_image = base64.b64encode(image_data).decode("ascii")
+    return (
+        "\033]1337;File=inline=1;"
+        f"name={encoded_name};size={len(image_data)};"
+        f"width={ITERM_LOGO_WIDTH};height={ITERM_LOGO_HEIGHT};"
+        f"preserveAspectRatio=1:{encoded_image}\a"
+    )
+
+
+def _print_inline_brand_mark() -> bool:
+    if not _supports_color() or _inline_logo_protocol() != "iterm2":
+        return False
     try:
-        "".join(line for line, _color in SHELL_LOGO_LINES).encode(output_encoding)
-    except (LookupError, UnicodeEncodeError):
-        return SHELL_LOGO_ASCII_LINES
-    return SHELL_LOGO_LINES
+        sys.stdout.write(_iterm_inline_image_sequence(_brand_mark_svg_bytes()))
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+    except (LookupError, OSError, UnicodeError):
+        return False
+    return True
 
 
 def _print_shell_quickstart(*, has_api_key: bool) -> None:
