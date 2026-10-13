@@ -2,14 +2,15 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/adanos-cli.svg)](https://pypi.org/project/adanos-cli/)
 
-`adanos-cli` is the command-line client for the [Adanos Market Sentiment API](https://api.adanos.org/docs).
+`adanos-cli` is the command-line client for the [Adanos Market Sentiment API](https://api.adanos.com/docs).
 
 It is built for three use cases:
 - traders who want fast stock and crypto sentiment reports
 - analysts who want repeatable CLI workflows
 - agents and automation that need stable JSON output
 
-The CLI is versioned independently from the API backend. It targets the public API at `https://api.adanos.org/docs` and uses the published Python SDK under the hood.
+The CLI is versioned independently from the API backend. It supports API 1.54.0 at `https://api.adanos.com/docs` and uses the published Python SDK under the hood.
+The default API host is `https://api.adanos.com`. Explicit `.org` or custom base URLs in saved settings, `ADANOS_BASE_URL`, or `--base-url` still take precedence.
 
 ## Install
 
@@ -231,6 +232,7 @@ adanos endpoint call reddit-stocks.market-sentiment --from 2026-05-01 --to 2026-
 adanos endpoint call reddit-stocks.stock.mentions --ticker TSLA --from 2026-05-01 --to 2026-05-07 --limit 10 --offset 10 --include-inherited
 adanos endpoint call x-stocks.stock.explain --ticker TSLA
 adanos endpoint call sentiment.analyze --text "TSLA looks like a short squeeze setup"
+adanos endpoint call sentiment.analyze --text "Apple beats estimates while Tesla falls" --target Apple
 ```
 
 Polymarket endpoint output includes both `market_count` for selected-window breadth and `current_market_count` for live-only active-market breadth.

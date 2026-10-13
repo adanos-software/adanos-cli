@@ -425,6 +425,9 @@ def _root_health(client: Any, args: Namespace) -> Any:
 
 def _sentiment_analyze(client: Any, args: Namespace) -> Any:
     text = _require_str(args, "text")
+    target = getattr(args, "target", None)
+    if target is not None:
+        return _raw_post_json(client, "/sentiment/v1/analyze", {"text": text, "target": target})
     sentiment = getattr(client, "sentiment", None)
     analyze = getattr(sentiment, "analyze", None)
     if callable(analyze):
@@ -439,7 +442,7 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "/sentiment/v1/analyze",
         "Analyze one finance or trading text",
         ("text",),
-        tuple(),
+        ("target",),
         _sentiment_analyze,
     ),
     "root.health": EndpointSpec(
@@ -642,6 +645,8 @@ def invoke_endpoint(client: Any, endpoint_id: str, args: Namespace) -> Any:
         raise CliUsageError(f"Unknown endpoint id: {endpoint_id}. Valid ids: {valid}")
     if getattr(args, "source", None) and "source" not in spec.required_params and "source" not in spec.optional_params:
         raise CliUsageError(f"Endpoint {endpoint_id} does not support --source")
+    if getattr(args, "target", None) is not None and "target" not in spec.optional_params:
+        raise CliUsageError(f"Endpoint {endpoint_id} does not support --target")
     return spec.invoke(client, args)
 
 

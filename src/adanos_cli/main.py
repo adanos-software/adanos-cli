@@ -69,9 +69,9 @@ from .watchlists import (
     upsert_watchlist_symbols,
 )
 
-SUPPORT_CONTACT_EMAIL = "support@adanos.org"
+SUPPORT_CONTACT_EMAIL = "support@adanos.com"
 PAID_ACCOUNT_TYPES = {"hobby", "professional"}
-DEFAULT_RECOVERY_REQUEST_URL = "https://adanos.org/api/recover"
+DEFAULT_RECOVERY_REQUEST_URL = "https://adanos.com/api/recover"
 ROOT_COMMANDS = (
     "onboard",
     "login",
@@ -219,7 +219,7 @@ def _style(text: str, *, fg: str | None = None, bold: bool = False, dim: bool = 
 
 def _print_welcome_screen(base_url: str, *, has_api_key: bool) -> None:
     print(_style("ADANOS CLI", fg="cyan", bold=True))
-    print(_style("Stocks + Crypto sentiment for api.adanos.org", dim=True))
+    print(_style("Stocks + Crypto sentiment for api.adanos.com", dim=True))
     print("")
     key_label = _style("configured", fg="green", bold=True) if has_api_key else _style("not configured", fg="red", bold=True)
     print(f"API base URL: {_style(base_url, fg='blue')}")
@@ -2010,7 +2010,7 @@ def _run_onboard_recover(args: Namespace, *, json_mode: bool) -> int:
             json_mode=json_mode,
             code="onboard_recover_failed",
             message=message if message else "Recovery request failed",
-            hint="Retry later or open https://adanos.org/key to use the hosted recovery form.",
+            hint="Retry later or open https://adanos.com/key to use the hosted recovery form.",
             status_code=status_code,
         )
         return 1
@@ -2197,7 +2197,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = AdanosArgumentParser(
         prog="adanos",
         description=(
-            "Comprehensive CLI for api.adanos.org. Supports all OpenAPI endpoints for "
+            "Comprehensive CLI for api.adanos.com. Supports all OpenAPI endpoints for "
             "News Stocks, Reddit Stocks, Reddit Crypto, X/Twitter Stocks, and Polymarket Stocks."
         ),
         formatter_class=argparse.RawTextHelpFormatter,
@@ -2512,6 +2512,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  adanos endpoint list --platform polymarket-stocks --search stock\n"
             "  adanos endpoint call reddit-stocks.trending --limit 10\n"
             "  adanos endpoint call polymarket-stocks.stock --ticker TSLA\n"
+            '  adanos endpoint call sentiment.analyze --text "Apple beats estimates" --target Apple\n'
         ),
     )
     ep_subs = p_endpoint.add_subparsers(dest="endpoint_cmd", required=True)
@@ -2531,6 +2532,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  adanos endpoint call root.health\n"
             "  adanos endpoint call reddit-stocks.trending --limit 10\n"
             "  adanos endpoint call polymarket-stocks.stock --ticker TSLA\n"
+            '  adanos endpoint call sentiment.analyze --text "Apple beats estimates" --target Apple\n'
         ),
     )
     p_ep_call.add_argument("endpoint_id", choices=sorted(ENDPOINTS.keys()))
@@ -2539,6 +2541,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ep_call.add_argument("--q")
     p_ep_call.add_argument("--query")
     p_ep_call.add_argument("--text")
+    p_ep_call.add_argument("--target", help="Optional company name or ticker for sentiment.analyze")
     p_ep_call.add_argument("--tickers", help="Comma-separated tickers")
     p_ep_call.add_argument("--symbols", help="Comma-separated symbols")
     p_ep_call.add_argument("--assets", help="Generic comma-separated assets (for compare)")

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-DEFAULT_BASE_URL = "https://api.adanos.org"
+DEFAULT_BASE_URL = "https://api.adanos.com"
 SECURE_DIR_MODE = 0o700
 SECURE_FILE_MODE = 0o600
 
