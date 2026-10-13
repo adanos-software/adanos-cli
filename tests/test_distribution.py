@@ -88,7 +88,7 @@ def test_render_formula_includes_install_and_test_blocks() -> None:
     )
 
     assert "class AdanosCli < Formula" in formula
-    assert 'homepage "https://adanos.org"' in formula
+    assert 'homepage "https://adanos.com"' in formula
     assert "def install" in formula
     assert 'assert_match "adanos", shell_output("#{bin}/adanos --help")' in formula
 

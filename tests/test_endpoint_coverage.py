@@ -99,7 +99,7 @@ def test_sentiment_analyze_endpoint_spec_is_complete() -> None:
     spec = ENDPOINTS["sentiment.analyze"]
     assert spec.path == "/sentiment/v1/analyze"
     assert spec.required_params == ("text",)
-    assert spec.optional_params == tuple()
+    assert spec.optional_params == ("target",)
 
 
 def test_news_endpoint_specs_are_complete() -> None:

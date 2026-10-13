@@ -19,7 +19,7 @@ def render_formula(
 ) -> str:
     return f"""class AdanosCli < Formula
   desc "Comprehensive CLI for the Adanos Market Sentiment API"
-  homepage "https://adanos.org"
+  homepage "https://adanos.com"
   version "{version}"
 
   on_macos do

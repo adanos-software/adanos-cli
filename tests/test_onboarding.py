@@ -138,8 +138,8 @@ def test_onboard_wizard_accepts_existing_key(tmp_path, monkeypatch) -> None:
 
 
 @respx.mock
-def test_onboard_register_accepts_email_verification_flow(capsys) -> None:
-    respx.post("https://api.adanos.org/auth/v1/register").mock(
+def test_onboard_register_accepts_email_verification_flow(isolated_config, capsys) -> None:
+    respx.post("https://api.adanos.com/auth/v1/register").mock(
         return_value=httpx.Response(
             202,
             json={
@@ -172,7 +172,7 @@ def test_onboard_register_accepts_email_verification_flow(capsys) -> None:
 
 @respx.mock
 def test_onboard_recover_requests_email_confirmation(capsys) -> None:
-    respx.post("https://adanos.org/api/recover").mock(
+    respx.post("https://adanos.com/api/recover").mock(
         return_value=httpx.Response(
             200,
             json={
@@ -192,7 +192,7 @@ def test_onboard_recover_requests_email_confirmation(capsys) -> None:
 
 @respx.mock
 def test_onboard_recover_json_outputs_structured_response(capsys) -> None:
-    respx.post("https://adanos.org/api/recover").mock(
+    respx.post("https://adanos.com/api/recover").mock(
         return_value=httpx.Response(
             200,
             json={
@@ -223,7 +223,7 @@ def test_onboard_redeem_save_writes_config(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(cli_config, "CONFIG_PATH", cfg_path)
     monkeypatch.setattr(cli_config, "CREDENTIALS_PATH", credentials_path)
 
-    respx.post("https://api.adanos.org/auth/v1/key/redeem", json={"token": token}).mock(
+    respx.post("https://api.adanos.com/auth/v1/key/redeem", json={"token": token}).mock(
         return_value=httpx.Response(
             200,
             json={
@@ -242,7 +242,7 @@ def test_onboard_redeem_save_writes_config(tmp_path, monkeypatch) -> None:
     assert credentials_path.exists()
 
     data = json.loads(cfg_path.read_text(encoding="utf-8"))
-    assert data["base_url"] == "https://api.adanos.org"
+    assert data["base_url"] == "https://api.adanos.com"
     credentials = json.loads(credentials_path.read_text(encoding="utf-8"))
     assert credentials["active_profile"] == "default"
     assert credentials["profiles"]["default"]["api_key"] == "adanos_key_abcdefghijklmnopqrstuvwxyz123456"
@@ -255,7 +255,7 @@ def test_onboard_redeem_accepts_token_stdin(tmp_path, monkeypatch, capsys) -> No
     returned_data = {"success": True, "plan": "free"}
     returned_data["api_" + "key"] = "adanos_key_fromstdinabcdefghijklmnopqrstuvwxyz"
     monkeypatch.setattr(sys, "stdin", io.StringIO(delivery_value + "\n"))
-    respx.post("https://api.adanos.org/auth/v1/key/redeem", json={"to" + "ken": delivery_value}).mock(
+    respx.post("https://api.adanos.com/auth/v1/key/redeem", json={"to" + "ken": delivery_value}).mock(
         return_value=httpx.Response(
             200,
             json=returned_data,
@@ -285,7 +285,7 @@ def test_onboard_redeem_rejects_token_stdin_from_tty(monkeypatch, capsys) -> Non
 
 
 def test_onboard_redeem_network_error_is_structured(monkeypatch, capsys) -> None:
-    request = httpx.Request("POST", "https://api.adanos.org/auth/v1/key/redeem")
+    request = httpx.Request("POST", "https://api.adanos.com/auth/v1/key/redeem")
 
     def fail_request(*_args, **_kwargs):
         raise httpx.ConnectError("connection refused", request=request)
@@ -300,7 +300,7 @@ def test_onboard_redeem_network_error_is_structured(monkeypatch, capsys) -> None
     assert "Traceback" not in captured.err
     payload = json.loads(captured.err)
     assert payload["error"]["code"] == "network_error"
-    assert payload["error"]["message"] == "Cannot reach API base URL https://api.adanos.org."
+    assert payload["error"]["message"] == "Cannot reach API base URL https://api.adanos.com."
 
 
 def test_onboard_redeem_text_requires_safe_destination_before_request(monkeypatch, capsys) -> None:
@@ -357,7 +357,7 @@ def test_onboard_redeem_quiet_does_not_consume_unsaved_token(monkeypatch, capsys
 def test_onboard_wizard_stops_after_register_until_email_arrives(tmp_path, monkeypatch, capsys) -> None:
     _isolate_config(tmp_path, monkeypatch)
     monkeypatch.setattr(cli_main, "is_interactive", lambda: True)
-    respx.post("https://api.adanos.org/auth/v1/register").mock(
+    respx.post("https://api.adanos.com/auth/v1/register").mock(
         return_value=httpx.Response(
             202,
             json={

@@ -5,6 +5,15 @@ All notable changes to `adanos-cli` will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [Unreleased]
+
+### Added
+- Add `--target` to `endpoint call sentiment.analyze` for sentiment about a company name or ticker.
+
+### Changed
+- Support API 1.54.0 and use `api.adanos.com` by default. Explicit saved, environment, and flag base URLs keep their precedence.
+- Use `adanos.com` for website links, account recovery, package metadata, Homebrew, and the support email address.
+
 ## [1.33.0] - 2026-08-09
 
 ### Added
