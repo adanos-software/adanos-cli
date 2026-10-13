@@ -138,7 +138,7 @@ def test_onboard_wizard_accepts_existing_key(tmp_path, monkeypatch) -> None:
 
 
 @respx.mock
-def test_onboard_register_accepts_email_verification_flow(capsys) -> None:
+def test_onboard_register_accepts_email_verification_flow(isolated_config, capsys) -> None:
     respx.post("https://api.adanos.com/auth/v1/register").mock(
         return_value=httpx.Response(
             202,

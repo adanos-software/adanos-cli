@@ -14,7 +14,7 @@ import adanos_cli.main as cli_main
 
 
 @respx.mock
-def test_account_status_free_plan_json(capsys) -> None:
+def test_account_status_free_plan_json(isolated_config, capsys) -> None:
     respx.get("https://api.adanos.com/reddit/stocks/v1/stats").mock(
         return_value=httpx.Response(
             200,
@@ -45,7 +45,7 @@ def test_account_status_free_plan_json(capsys) -> None:
 
 
 @respx.mock
-def test_account_status_success_text_does_not_print_stats_note(capsys) -> None:
+def test_account_status_success_text_does_not_print_stats_note(isolated_config, capsys) -> None:
     respx.get("https://api.adanos.com/reddit/stocks/v1/stats").mock(
         return_value=httpx.Response(
             200,
@@ -66,7 +66,7 @@ def test_account_status_success_text_does_not_print_stats_note(capsys) -> None:
 
 
 @respx.mock
-def test_account_status_professional_plan_json(capsys) -> None:
+def test_account_status_professional_plan_json(isolated_config, capsys) -> None:
     respx.get("https://api.adanos.com/reddit/stocks/v1/stats").mock(
         return_value=httpx.Response(
             200,
@@ -96,7 +96,7 @@ def test_account_status_professional_plan_json(capsys) -> None:
 
 
 @respx.mock
-def test_account_status_falls_back_to_non_monthly_reset_header(capsys) -> None:
+def test_account_status_falls_back_to_non_monthly_reset_header(isolated_config, capsys) -> None:
     respx.get("https://api.adanos.com/reddit/stocks/v1/stats").mock(
         return_value=httpx.Response(
             200,
@@ -121,7 +121,7 @@ def test_account_status_falls_back_to_non_monthly_reset_header(capsys) -> None:
 
 
 @respx.mock
-def test_account_status_out_of_credits_text(capsys) -> None:
+def test_account_status_out_of_credits_text(isolated_config, capsys) -> None:
     respx.get("https://api.adanos.com/reddit/stocks/v1/stats").mock(
         return_value=httpx.Response(
             429,
