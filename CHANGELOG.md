@@ -7,6 +7,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [1.34.0] - 2026-10-13
+
 ### Added
 - Add `--target` to `endpoint call sentiment.analyze` for sentiment about a company name or ticker.
 

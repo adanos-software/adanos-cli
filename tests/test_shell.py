@@ -204,7 +204,7 @@ def test_shell_header_uses_clean_wordmark_without_inline_image(monkeypatch, caps
     cli_main._print_shell_header("https://api.adanos.org", has_api_key=False)
     out = capsys.readouterr().out
 
-    assert out.startswith("ADANOS  Market Sentiment CLI v1.33.0\n")
+    assert out.startswith("ADANOS  Market Sentiment CLI v1.34.0\n")
     assert "account: not configured  |  api: https://api.adanos.org" in out
     assert "cwd:" in out
     assert "█" not in out
