@@ -71,7 +71,20 @@ from .watchlists import (
 
 SUPPORT_CONTACT_EMAIL = "support@adanos.com"
 PAID_ACCOUNT_TYPES = {"hobby", "professional"}
-DEFAULT_RECOVERY_REQUEST_URL = "https://adanos.com/api/recover"
+ADANOS_REGISTER_URL = "https://adanos.com/register"
+ADANOS_LOGIN_URL = "https://adanos.com/login"
+ADANOS_ACCOUNT_URL = "https://adanos.com/account"
+SAVE_KEY_STEP = "adanos login  # paste the key at the hidden prompt"
+ONBOARDING_STEPS = (
+    f"Sign up or log in at {ADANOS_REGISTER_URL}",
+    f"Create an API key on {ADANOS_ACCOUNT_URL}",
+    SAVE_KEY_STEP,
+)
+RECOVERY_STEPS = (
+    f"Log in at {ADANOS_LOGIN_URL}",
+    f"Rotate the API key on {ADANOS_ACCOUNT_URL}",
+    SAVE_KEY_STEP,
+)
 ROOT_COMMANDS = (
     "onboard",
     "login",
@@ -172,18 +185,15 @@ def _print_onboarding_guide(base_url: str, *, has_api_key: bool = False) -> None
     else:
         print("API key is not configured.")
 
-    print("Guided setup (no curl):")
-    print("1) If you already have an API key:")
+    print("Get an API key on adanos.com:")
+    print(f"1) Sign up at {ADANOS_REGISTER_URL} (email code, Google or Apple).")
+    print(f"   Already have an account? Log in at {ADANOS_LOGIN_URL}.")
+    print(f"2) Create an API key on {ADANOS_ACCOUNT_URL}.")
+    print("3) Save the key in the CLI:")
     print("   adanos login  # paste the key at the hidden prompt")
-    print("2) Recommended if you need a new key: run the interactive wizard")
-    print("   adanos onboard wizard")
-    print("3) Manual alternative:")
-    print('   adanos onboard register --name "Your Name" --email "you@example.com" --purpose "CLI usage for stocks and crypto"')
-    print("   # wait for the email, then redeem the one-time token")
-    print("   adanos onboard redeem --save  # paste the one-time code at the hidden prompt")
-    print("4) If you lost access to an existing key:")
-    print('   adanos onboard recover --email "you@example.com"')
-    print("5) Start using the API:")
+    print("   or run the guided setup: adanos onboard wizard")
+    print(f"Lost your key? Log in at {ADANOS_LOGIN_URL} and rotate it on {ADANOS_ACCOUNT_URL}.")
+    print("Start using the API:")
     print('   adanos ask "How does TSLA look?"')
     print(f"API base URL: {base_url}")
 
@@ -238,7 +248,7 @@ def _print_welcome_screen(base_url: str, *, has_api_key: bool) -> None:
     else:
         print(_style("Setup in 2 steps:", fg="yellow", bold=True))
         print("  1) adanos onboard wizard")
-        print("  2) or manual: adanos onboard register ... then redeem the emailed token")
+        print(f"  2) or create a key on {ADANOS_ACCOUNT_URL}, then run: adanos login")
     print("")
     print(_style("Core commands:", fg="cyan", bold=True))
     print("  adanos stock <TICKER>")
@@ -381,7 +391,7 @@ def _print_shell_help(*, has_api_key: bool) -> None:
     print("")
     print(_style("Command Catalog", fg="cyan", bold=True))
     print("  Setup + Config")
-    print("    /onboard guide|wizard|register|redeem")
+    print("    /onboard guide|wizard|register|recover")
     print("    /login")
     print("    /logout")
     print("    /auth login|logout|list|switch|current")
@@ -837,12 +847,7 @@ def _capabilities_payload(base_url: str, *, has_api_key: bool) -> dict[str, Any]
         "endpoint_count": len(ENDPOINTS),
         "auth": {
             "header": "X-API-Key",
-            "setup": [
-                "adanos onboard wizard",
-                "adanos onboard register --name ... --email ... --purpose ...",
-                "check email for the one-time token",
-                "adanos onboard redeem --save",
-            ],
+            "setup": list(ONBOARDING_STEPS),
             "alternatives": [
                 "adanos login --api-key-stdin",
                 "adanos login --api-key-file ~/.config/adanos-cli/key.txt",
@@ -1242,30 +1247,6 @@ def _classify_runtime_error(exc: Exception) -> tuple[str, str, str | None, int |
         )
 
     return ("runtime_error", message, None, status_code)
-
-
-def _request_onboard_register(base_url: str, payload: dict[str, str]) -> tuple[int, dict[str, Any] | None, str]:
-    with httpx.Client(base_url=base_url, timeout=30.0) as http:
-        response = http.post("/auth/v1/register", json=payload)
-    data = _decode_json_dict(response)
-    message = _extract_error_message(response)
-    return response.status_code, data, message
-
-
-def _request_onboard_redeem(base_url: str, token: str) -> tuple[int, dict[str, Any] | None, str]:
-    with httpx.Client(base_url=base_url, timeout=30.0) as http:
-        response = http.post("/auth/v1/key/redeem", json={"token": token})
-    data = _decode_json_dict(response)
-    message = _extract_error_message(response)
-    return response.status_code, data, message
-
-
-def _request_onboard_recover(recovery_url: str, payload: dict[str, str]) -> tuple[int, dict[str, Any] | None, str]:
-    with httpx.Client(timeout=30.0) as http:
-        response = http.post(recovery_url, json=payload)
-    data = _decode_json_dict(response)
-    message = _extract_error_message(response)
-    return response.status_code, data, message
 
 
 def _request_account_status(
@@ -1861,17 +1842,6 @@ def _format_shell_api_key_status(*, has_api_key: bool, account_status: dict[str,
     return _style("configured", fg="green", bold=True)
 
 
-def _prompt_non_empty(label: str, *, default: str | None = None) -> str:
-    while True:
-        suffix = f" [{default}]" if default else ""
-        value = input(f"{label}{suffix}: ").strip()
-        if value:
-            return value
-        if default:
-            return default
-        print("Please provide a value.")
-
-
 def _prompt_secret_non_empty(label: str) -> str:
     while True:
         value = getpass(f"{label}: ").strip()
@@ -1892,163 +1862,69 @@ def _prompt_yes_no(label: str, *, default_yes: bool = True) -> bool:
     return default_yes
 
 
-def _run_onboard_register(args: Namespace, base_url: str, *, json_mode: bool) -> int:
-    payload: dict[str, str] = {
-        "name": args.name,
-        "email": args.email,
-        "purpose": args.purpose,
-    }
-    if args.company_name:
-        payload["company_name"] = args.company_name
+def _print_steps(steps: tuple[str, ...]) -> None:
+    for number, step in enumerate(steps, start=1):
+        print(f"{number}) {step}")
 
-    status_code, data, message = _request_onboard_register(base_url, payload)
-    if status_code not in {200, 202}:
-        _emit_error(
-            json_mode=json_mode,
-            code="onboard_register_failed",
-            message=message,
-            hint="If you already registered, check your email or use `adanos onboard recover --email ...`",
-            status_code=status_code,
-        )
-        return 1
 
-    if not isinstance(data, dict):
-        _emit_error(
-            json_mode=json_mode,
-            code="onboard_register_failed",
-            message="Response did not include structured registration data",
-            status_code=status_code,
-        )
-        return 1
-
-    email = str(data.get("email") or args.email)
-
+def _run_onboard_web_handoff(
+    *, subcommand: str, kind: str, intro: str, url: str, steps: tuple[str, ...], json_mode: bool
+) -> int:
     if json_mode:
         print_json(
             with_json_metadata(
-                data,
-                kind="onboard_registration",
+                {"ok": True, "url": url, "steps": list(steps)},
+                kind=kind,
                 command="onboard",
-                subcommand="register",
+                subcommand=subcommand,
             )
         )
     else:
-        print("Registration accepted.")
-        print(f"Email: {email}")
-        print(str(data.get("message") or "Check your email for the secure verification link."))
-        print("Next command:")
-        print("adanos onboard redeem --save  # paste the one-time code at the hidden prompt")
-
+        print(intro)
+        _print_steps(steps)
     return 0
 
 
-def _run_onboard_redeem(args: Namespace, base_url: str, *, json_mode: bool) -> int:
-    token = args.token.strip()
-    status_code, data, message = _request_onboard_redeem(base_url, token)
-    if status_code != 200:
-        _emit_error(
-            json_mode=json_mode,
-            code="onboard_redeem_failed",
-            message=message,
-            hint="Ensure token format is kt_... and token is unused",
-            status_code=status_code,
-        )
-        return 1
-
-    if not isinstance(data, dict):
-        _emit_error(
-            json_mode=json_mode,
-            code="onboard_redeem_failed",
-            message="Response did not include structured key data",
-            status_code=status_code,
-        )
-        return 1
-
-    api_key = str(data.get("api_key") or "")
-    if not api_key:
-        _emit_error(
-            json_mode=json_mode,
-            code="onboard_redeem_failed",
-            message="Response did not include an API key",
-        )
-        return 1
-
-    if args.save:
-        save_config_file(api_key=api_key, base_url=base_url)
-
-    if json_mode:
-        print_json(
-            with_json_metadata(
-                data,
-                kind="onboard_redeem",
-                command="onboard",
-                subcommand="redeem",
-                saved=bool(args.save),
-            )
-        )
-    else:
-        print("API key retrieved.")
-        print(f"Plan: {data.get('plan', 'unknown')}")
-        print(f"Email: {data.get('email', 'unknown')}")
-        print(f"Retrieved at: {data.get('retrieved_at', 'unknown')}")
-        print(f"API key: {masked_key(api_key)}")
-        if args.save:
-            print(f"Credentials saved: {cli_config.CREDENTIALS_PATH}")
-            print(f"Config saved: {cli_config.CONFIG_PATH}")
-            print('Try now: adanos ask "crypto btc/eth"')
-        else:
-            print(f"Save now: adanos config set --api-key {api_key}")
-
-    return 0
+def _run_onboard_register(*, json_mode: bool) -> int:
+    return _run_onboard_web_handoff(
+        subcommand="register",
+        kind="onboard_registration",
+        intro="Create your account and API key on adanos.com (email code, Google or Apple).",
+        url=ADANOS_REGISTER_URL,
+        steps=ONBOARDING_STEPS,
+        json_mode=json_mode,
+    )
 
 
-def _run_onboard_recover(args: Namespace, *, json_mode: bool) -> int:
-    recovery_url = str(args.recovery_url or DEFAULT_RECOVERY_REQUEST_URL).strip()
-    status_code, data, message = _request_onboard_recover(recovery_url, {"email": args.email})
-    if status_code not in {200, 202}:
-        _emit_error(
-            json_mode=json_mode,
-            code="onboard_recover_failed",
-            message=message if message else "Recovery request failed",
-            hint="Retry later or open https://adanos.com/key to use the hosted recovery form.",
-            status_code=status_code,
-        )
-        return 1
+def _run_onboard_recover(*, json_mode: bool) -> int:
+    return _run_onboard_web_handoff(
+        subcommand="recover",
+        kind="onboard_recovery",
+        intro="Recover access on adanos.com.",
+        url=ADANOS_LOGIN_URL,
+        steps=RECOVERY_STEPS,
+        json_mode=json_mode,
+    )
 
-    if not isinstance(data, dict) or data.get("success") is not True:
-        _emit_error(
-            json_mode=json_mode,
-            code="onboard_recover_failed",
-            message="Response did not include structured recovery data",
-            status_code=status_code,
-        )
-        return 1
 
-    if json_mode:
-        print_json(
-            with_json_metadata(
-                data,
-                kind="onboard_recovery",
-                command="onboard",
-                subcommand="recover",
-            )
-        )
-    else:
-        print("Recovery request accepted.")
-        print(str(data.get("message") or "If an account exists, further recovery instructions will be sent separately."))
-        print("Next step:")
-        print("  Check your email for the secure recovery link.")
-
-    return 0
+def _run_onboard_redeem_removed(*, json_mode: bool) -> int:
+    _emit_error(
+        json_mode=json_mode,
+        code="onboard_redeem_removed",
+        message="One-time token redemption was removed. API keys are now created on adanos.com.",
+        hint=f"Create or rotate your key on {ADANOS_ACCOUNT_URL}, then run `adanos login`.",
+    )
+    return 2
 
 
 def _run_onboard_wizard(args: Namespace, base_url: str, *, json_mode: bool, runtime_has_key: bool) -> int:
+    non_interactive_hint = f"Create a key on {ADANOS_ACCOUNT_URL}, then run `adanos login --api-key-stdin`."
     if json_mode:
         _emit_error(
             json_mode=True,
             code="onboard_wizard_unsupported",
             message="Interactive wizard is only available in text mode",
-            hint="Use `adanos onboard register ...`, then redeem the emailed token with `adanos onboard redeem ... --save`",
+            hint=non_interactive_hint,
         )
         return 2
 
@@ -2057,7 +1933,7 @@ def _run_onboard_wizard(args: Namespace, base_url: str, *, json_mode: bool, runt
             json_mode=False,
             code="onboard_wizard_unsupported",
             message="Interactive wizard is disabled by --no-input",
-            hint="Use explicit commands: onboard register, then onboard redeem",
+            hint=non_interactive_hint,
         )
         return 2
 
@@ -2066,7 +1942,7 @@ def _run_onboard_wizard(args: Namespace, base_url: str, *, json_mode: bool, runt
             json_mode=False,
             code="onboard_wizard_unsupported",
             message="Interactive wizard requires a TTY terminal",
-            hint="Use explicit commands: onboard register, then onboard redeem",
+            hint=non_interactive_hint,
         )
         return 2
 
@@ -2077,71 +1953,12 @@ def _run_onboard_wizard(args: Namespace, base_url: str, *, json_mode: bool, runt
         if not _prompt_yes_no("Do you want to replace it?", default_yes=False):
             print("Keeping existing key. Setup finished.")
             return 0
-    elif _prompt_yes_no("Do you already have an API key?", default_yes=False):
-        api_key = _prompt_secret_non_empty("Existing API key")
-        save_config_file(api_key=api_key, base_url=base_url)
-        print("API key stored.")
-        print(f"Credentials saved: {cli_config.CREDENTIALS_PATH}")
-        print(f"Config saved: {cli_config.CONFIG_PATH}")
-        print('Next: adanos ask "How does TSLA look?"')
-        return 0
 
-    name = _prompt_non_empty("Your name")
-    email = _prompt_non_empty("Your email")
-    purpose = _prompt_non_empty("Usage purpose", default="CLI usage for stocks and crypto")
-    company_name = input("Company (optional): ").strip()
-
-    payload: dict[str, str] = {"name": name, "email": email, "purpose": purpose}
-    if company_name:
-        payload["company_name"] = company_name
-
-    print("")
-    print("Registering your account...")
-    status_code, data, message = _request_onboard_register(base_url, payload)
-    if status_code not in {200, 202} or not isinstance(data, dict):
-        _emit_error(
-            json_mode=False,
-            code="onboard_register_failed",
-            message=message if message else "Registration failed",
-            hint="You can retry with `adanos onboard register ...`",
-            status_code=status_code,
-        )
-        return 1
-
-    print("Registration accepted.")
-    print(str(data.get("message") or "Check your email for the secure verification link."))
-
-    print("")
-    if not _prompt_yes_no("Do you already have the delivery token from your email?", default_yes=False):
-        print("Next step:")
-        print("  Check your email for the secure verification link.")
-        print("  adanos onboard redeem --token <delivery_token> --save")
-        return 0
-
-    token = _prompt_non_empty("Delivery token")
-    print("Redeeming token...")
-    redeem_status, redeem_data, redeem_message = _request_onboard_redeem(base_url, token)
-    if redeem_status != 200 or not isinstance(redeem_data, dict):
-        _emit_error(
-            json_mode=False,
-            code="onboard_redeem_failed",
-            message=redeem_message if redeem_message else "Token redemption failed",
-            hint="Retry with `adanos onboard redeem --token <delivery_token> --save`",
-            status_code=redeem_status,
-        )
-        return 1
-
-    api_key = str(redeem_data.get("api_key") or "").strip()
-    if not api_key:
-        _emit_error(
-            json_mode=False,
-            code="onboard_redeem_failed",
-            message="Response did not include an API key",
-        )
-        return 1
-
+    _print_steps(ONBOARDING_STEPS[:2])
+    print("3) Paste the key below.")
+    api_key = _prompt_secret_non_empty("API key")
     save_config_file(api_key=api_key, base_url=base_url)
-    print("API key retrieved and stored.")
+    print("API key stored.")
     print(f"Credentials saved: {cli_config.CREDENTIALS_PATH}")
     print(f"Config saved: {cli_config.CONFIG_PATH}")
     print('Next: adanos ask "How does TSLA look?"')
@@ -2242,25 +2059,21 @@ def _build_parser() -> argparse.ArgumentParser:
     p_onboard_wizard.add_argument("--json", action="store_true")
     p_onboard_wizard.set_defaults(_handler="onboard_wizard")
 
-    p_onboard_register = onboard_subs.add_parser("register", help="Start email verification for a new API key")
-    p_onboard_register.add_argument("--name", required=True, help="Your full name")
-    p_onboard_register.add_argument("--email", required=True, help="Your email address")
-    p_onboard_register.add_argument("--purpose", required=True, help="How you will use the API")
-    p_onboard_register.add_argument("--company-name", help="Optional company/organization")
+    p_onboard_register = onboard_subs.add_parser("register", help=f"Show how to sign up on {ADANOS_REGISTER_URL}")
+    for legacy_flag in ("--name", "--email", "--purpose", "--company-name"):
+        p_onboard_register.add_argument(legacy_flag, help=argparse.SUPPRESS)
     p_onboard_register.add_argument("--json", action="store_true")
     p_onboard_register.set_defaults(_handler="onboard_register")
 
-    p_onboard_redeem = onboard_subs.add_parser("redeem", help="Redeem the one-time token from your email to get the API key")
-    token_group = p_onboard_redeem.add_mutually_exclusive_group()
-    token_group.add_argument("--token", help="Legacy: one-time delivery token (visible in process history)")
-    token_group.add_argument("--token-stdin", action="store_true", help="Read the one-time delivery token from stdin")
-    p_onboard_redeem.add_argument("--save", action="store_true", help="Save API key directly into local config")
+    p_onboard_redeem = onboard_subs.add_parser("redeem", help=f"Removed: create your key on {ADANOS_ACCOUNT_URL}")
+    p_onboard_redeem.add_argument("--token", help=argparse.SUPPRESS)
+    p_onboard_redeem.add_argument("--token-stdin", action="store_true", help=argparse.SUPPRESS)
+    p_onboard_redeem.add_argument("--save", action="store_true", help=argparse.SUPPRESS)
     p_onboard_redeem.add_argument("--json", action="store_true")
     p_onboard_redeem.set_defaults(_handler="onboard_redeem")
 
-    p_onboard_recover = onboard_subs.add_parser("recover", help="Request a recovery email for an existing API key")
-    p_onboard_recover.add_argument("--email", required=True, help="Registered email address for the API account")
-    p_onboard_recover.add_argument("--recovery-url", help=argparse.SUPPRESS)
+    p_onboard_recover = onboard_subs.add_parser("recover", help=f"Show how to recover access on {ADANOS_LOGIN_URL}")
+    p_onboard_recover.add_argument("--email", help=argparse.SUPPRESS)
     p_onboard_recover.add_argument("--json", action="store_true")
     p_onboard_recover.set_defaults(_handler="onboard_recover")
 
@@ -4007,26 +3820,6 @@ def _explicit_json_requested(raw_argv: list[str]) -> bool:
     return _explicit_output_mode(raw_argv) == "json"
 
 
-def _explicit_redeem_output(raw_argv: list[str]) -> bool:
-    selected = False
-    idx = 0
-    while idx < len(raw_argv):
-        arg = raw_argv[idx]
-        if arg == "--":
-            break
-        if arg in {"--output=text", "--output=json"}:
-            selected = arg.endswith("=json")
-        elif arg == "--output" and idx + 1 < len(raw_argv) and raw_argv[idx + 1] in {"text", "json"}:
-            selected = raw_argv[idx + 1] == "json"
-            idx += 1
-        elif arg == "--json":
-            selected = True
-        elif arg == "--plain":
-            selected = False
-        idx += 1
-    return selected
-
-
 def _set_parser_json_errors(parser: argparse.ArgumentParser, *, enabled: bool) -> None:
     if isinstance(parser, AdanosArgumentParser):
         parser._json_errors = enabled
@@ -4089,40 +3882,6 @@ def _parser_usage_hint(message: str, *, parser: argparse.ArgumentParser) -> str:
     return _usage_hint(message)
 
 
-def _read_delivery_value(args: Namespace) -> str:
-    delivery_value = str(getattr(args, "token", "") or "").strip()
-    if delivery_value:
-        return delivery_value
-    if bool(getattr(args, "token_stdin", False)):
-        if bool(getattr(sys.stdin, "isatty", lambda: False)()):
-            raise CliUsageError("--token-stdin requires redirected input. Omit it to use the hidden prompt.")
-        delivery_value = sys.stdin.readline().strip()
-        if not delivery_value:
-            raise CliUsageError("No delivery token received on stdin.")
-        return delivery_value
-    if bool(getattr(args, "no_input", False)):
-        raise CliUsageError("Delivery token required with --no-input. Use --token-stdin.")
-    if not is_interactive():
-        raise CliUsageError("Non-interactive usage requires --token-stdin or the legacy --token flag.")
-    delivery_value = getpass("One-time code: ").strip()
-    if not delivery_value:
-        raise CliUsageError("Delivery token must not be empty.")
-    return delivery_value
-
-
-def _run_onboard_redeem_safely(args: Namespace, base_url: str, *, json_mode: bool) -> int:
-    if not args.save and not bool(getattr(args, "_explicit_redeem_output", False)):
-        _emit_error(
-            json_mode=json_mode,
-            code="onboard_redeem_destination_required",
-            message="Text-mode redemption requires a safe destination before the one-time token is consumed.",
-            hint="Use --save to store the key locally, or --json for explicit machine-readable output.",
-        )
-        return 2
-    args.token = _read_delivery_value(args)
-    return _run_onboard_redeem(args, base_url, json_mode=json_mode)
-
-
 def _guard_destructive_action(args: Namespace) -> int | None:
     descriptions = {
         "auth_logout": "remove the selected local auth profile",
@@ -4168,7 +3927,6 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
         json_mode = False
     setattr(args, "json", json_mode)
     setattr(args, "_explicit_json", explicit_json)
-    setattr(args, "_explicit_redeem_output", _explicit_redeem_output(raw_argv))
 
     if args.version:
         if args.json:
@@ -4317,13 +4075,10 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
                         "ok": True,
                         "onboarding": {
                             "base_url": runtime_cfg.base_url,
-                            "steps": [
-                                "adanos onboard wizard",
-                                'adanos onboard register --name "Your Name" --email "you@example.com" --purpose "CLI usage for stocks and crypto"',
-                                "check email for the one-time token",
-                                "adanos onboard redeem --save",
-                                'adanos onboard recover --email "you@example.com"',
-                            ],
+                            "register_url": ADANOS_REGISTER_URL,
+                            "login_url": ADANOS_LOGIN_URL,
+                            "account_url": ADANOS_ACCOUNT_URL,
+                            "steps": list(ONBOARDING_STEPS),
                         },
                     },
                     kind="onboarding_guide",
@@ -4347,22 +4102,13 @@ def _main_impl(raw_argv: list[str], *, argv_supplied: bool) -> int:
         )
 
     if handler == "onboard_register":
-        return _run_onboarding_action(
-            lambda: _run_onboard_register(args, runtime_cfg.base_url, json_mode=args.json),
-            json_mode=args.json,
-        )
+        return _run_onboard_register(json_mode=args.json)
 
     if handler == "onboard_redeem":
-        return _run_onboarding_action(
-            lambda: _run_onboard_redeem_safely(args, runtime_cfg.base_url, json_mode=args.json),
-            json_mode=args.json,
-        )
+        return _run_onboard_redeem_removed(json_mode=args.json)
 
     if handler == "onboard_recover":
-        return _run_onboarding_action(
-            lambda: _run_onboard_recover(args, json_mode=args.json),
-            json_mode=args.json,
-        )
+        return _run_onboard_recover(json_mode=args.json)
 
     if _requires_api_key(args) and not runtime_cfg.api_key:
         if args.json:
