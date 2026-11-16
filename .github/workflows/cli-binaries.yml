@@ -4,9 +4,16 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag to rebuild
+        required: true
+        type: string
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
 
 jobs:
   build:
@@ -20,12 +27,12 @@ jobs:
             target: linux-x86_64
           - runner: macos-15-intel
             target: darwin-x86_64
-          - runner: macos-14
+          - runner: macos-15
             target: darwin-arm64
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -55,7 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Download binary artifacts
         uses: actions/download-artifact@v7
@@ -71,7 +78,7 @@ jobs:
           print(re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1))
           PY
           )
-          TAG="${{ github.event.release.tag_name }}"
+          TAG="$RELEASE_TAG"
           test "${TAG#v}" = "$VERSION"
           mkdir -p release-upload
           find release-artifacts -type f -name '*.tar.gz' -exec cp {} release-upload/ \;
@@ -84,7 +91,7 @@ jobs:
       - name: Publish release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" release-upload/* --clobber
+        run: gh release upload "$RELEASE_TAG" release-upload/* --clobber
 
   homebrew-formula:
     name: Generate Homebrew Formula
@@ -97,7 +104,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Download binary artifacts
         uses: actions/download-artifact@v7
@@ -113,7 +120,7 @@ jobs:
           print(re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1))
           PY
           )
-          TAG="${{ github.event.release.tag_name }}"
+          TAG="$RELEASE_TAG"
           DARWIN_X64=$(find formula-artifacts -type f -name "adanos-cli-${VERSION}-darwin-x86_64.tar.gz" | head -n 1)
           DARWIN_ARM64=$(find formula-artifacts -type f -name "adanos-cli-${VERSION}-darwin-arm64.tar.gz" | head -n 1)
           LINUX_X64=$(find formula-artifacts -type f -name "adanos-cli-${VERSION}-linux-x86_64.tar.gz" | head -n 1)
@@ -141,7 +148,7 @@ jobs:
       - name: Attach Homebrew formula to release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/homebrew/adanos-cli.rb --clobber
+        run: gh release upload "$RELEASE_TAG" dist/homebrew/adanos-cli.rb --clobber
 
       - name: Checkout Homebrew tap repository
         if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
@@ -164,5 +171,5 @@ jobs:
             echo "Homebrew tap already up to date."
             exit 0
           fi
-          git commit -m "Update adanos-cli formula for ${{ github.event.release.tag_name }}"
+          git commit -m "Update adanos-cli formula for $RELEASE_TAG"
           git push origin HEAD:main
