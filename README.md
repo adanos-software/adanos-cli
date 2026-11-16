@@ -9,7 +9,7 @@ It is built for three use cases:
 - analysts who want repeatable CLI workflows
 - agents and automation that need stable JSON output
 
-The CLI is versioned independently from the API backend. It supports API 1.54.0 at `https://api.adanos.com/docs` and uses the published Python SDK under the hood.
+The CLI is versioned independently from the API backend. It supports API 1.55.0 at `https://api.adanos.com/docs` and uses the published Python SDK under the hood.
 The default API host is `https://api.adanos.com`. Explicit `.org` or custom base URLs in saved settings, `ADANOS_BASE_URL`, or `--base-url` still take precedence.
 
 ## Install
@@ -234,6 +234,8 @@ adanos endpoint call x-stocks.stock.explain --ticker TSLA
 adanos endpoint call sentiment.analyze --text "TSLA looks like a short squeeze setup"
 adanos endpoint call sentiment.analyze --text "Apple beats estimates while Tesla falls" --target Apple
 ```
+
+Polymarket uses Instrument Graph keys in API `1.55.0`: stocks, ADRs, and share classes of one company share a key; ETFs keep their own keys. Use `BRK`, `BNY`, or `EWG`, and keep venue suffixes returned by Search, such as `SAP.DE`. Find replacement keys with Search. For example, `BK` is now `BNY` and `DAX` is `EWG`. Stock detail and raw mentions return `404` for unknown keys and `503` when identity lookup is unavailable. Share classes such as `BRK.B` or `BRK-B`, cashtags, and unknown suffixes return `422`. Compare keeps unknown keys as zero-activity rows without a company name and does not rewrite aliases. A `null` compare `buzz_score` means unavailable data, not zero; `trend_history` can be absent. Raw `strike_price` is `null` for company-value or reported-figure thresholds, such as market capitalization or capex.
 
 Polymarket endpoint output includes both `market_count` for selected-window breadth and `current_market_count` for live-only active-market breadth.
 For API `1.45.1+`, Polymarket `top_mentions` in stock detail output are representative sentiment evidence, not a liquidity leaderboard. When market status is available, the CLI shows `market_status` alongside the evidence. For API `1.46.0+`, human summaries prefer `daily_trend[].bullish_pct` and `daily_trend[].bearish_pct` over deprecated positive/negative/neutral count fields.

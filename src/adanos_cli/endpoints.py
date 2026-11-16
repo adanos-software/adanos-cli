@@ -606,10 +606,10 @@ ENDPOINTS: dict[str, EndpointSpec] = {
         "polymarket-stocks.trending.countries", "/polymarket/stocks/v1/trending/countries", "Trending Polymarket countries", tuple(), TRENDING_PARAMS, _polymarket_stocks_trending_countries
     ),
     "polymarket-stocks.stock": EndpointSpec(
-        "polymarket-stocks.stock", "/polymarket/stocks/v1/stock/{ticker}", "Stock detail on Polymarket", ("ticker",), PERIOD_PARAMS, _polymarket_stocks_stock
+        "polymarket-stocks.stock", "/polymarket/stocks/v1/stock/{ticker}", "Polymarket detail for a Graph company or ETF key", ("ticker",), PERIOD_PARAMS, _polymarket_stocks_stock
     ),
     "polymarket-stocks.stock.mentions": EndpointSpec(
-        "polymarket-stocks.stock.mentions", "/polymarket/stocks/v1/stock/{ticker}/mentions", "Raw Polymarket mentions for a stock", ("ticker",), RAW_MENTION_PARAMS, _polymarket_stocks_mentions
+        "polymarket-stocks.stock.mentions", "/polymarket/stocks/v1/stock/{ticker}/mentions", "Raw Polymarket snapshots for a Graph key", ("ticker",), RAW_MENTION_PARAMS, _polymarket_stocks_mentions
     ),
     "polymarket-stocks.search": EndpointSpec(
         "polymarket-stocks.search",

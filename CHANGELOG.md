@@ -7,6 +7,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+- Document API `1.55.0` Polymarket Graph keys, ticker migration, and error behavior in the README and endpoint descriptions.
+- Add local HTTP command regressions for Graph keys, nullable compare metrics, and nonzero exits for `404`, `422`, and `503`.
+
 ## [1.34.0] - 2026-10-13
 
 ### Added
