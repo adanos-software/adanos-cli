@@ -7,7 +7,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [1.34.1] - 2026-11-16
+
 ### Changed
+- Require Python SDK `adanos>=2.8.1` so CLI installs include the API `1.55.0` Polymarket response fixes.
 - Document API `1.55.0` Polymarket Graph keys, ticker migration, and error behavior in the README and endpoint descriptions.
 - Add local HTTP command regressions for Graph keys, nullable compare metrics, and nonzero exits for `404`, `422`, and `503`.
 
