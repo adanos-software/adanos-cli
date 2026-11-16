@@ -9,6 +9,7 @@ from pathlib import Path
 
 import adanos_cli.config as cli_config
 import adanos_cli.main as cli_main
+from adanos_cli import __version__
 
 
 def _isolate_config(tmp_path: Path, monkeypatch) -> None:
@@ -204,7 +205,7 @@ def test_shell_header_uses_clean_wordmark_without_inline_image(monkeypatch, caps
     cli_main._print_shell_header("https://api.adanos.org", has_api_key=False)
     out = capsys.readouterr().out
 
-    assert out.startswith("ADANOS  Market Sentiment CLI v1.34.0\n")
+    assert out.startswith(f"ADANOS  Market Sentiment CLI v{__version__}\n")
     assert "account: not configured  |  api: https://api.adanos.org" in out
     assert "cwd:" in out
     assert "█" not in out
