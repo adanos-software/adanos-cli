@@ -7,6 +7,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [1.35.0] - 2026-11-17
+
 ### Changed
 - `adanos onboard register` now points to https://adanos.com/register and makes no API call. Accounts and API keys are created on adanos.com.
 - `adanos onboard recover` now points to https://adanos.com/login, where you rotate the key on the account page. It makes no request.
