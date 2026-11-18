@@ -7,16 +7,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
-## [1.35.0] - 2026-11-17
+## [1.35.0] - 2026-11-18
 
 ### Changed
 - `adanos onboard register` now points to https://adanos.com/register and makes no API call. Accounts and API keys are created on adanos.com.
 - `adanos onboard recover` now points to https://adanos.com/login, where you rotate the key on the account page. It makes no request.
 - The onboarding guide, wizard, welcome screen and `capabilities` describe the new path: sign up or log in on adanos.com, create the key on https://adanos.com/account, then save it with `adanos login`.
+- JSON output: `onboard register` and `onboard recover` keep their `kind` values but now return `ok`, `url` and `steps`. Fields from the old API responses such as `success`, `email` and `message` are gone. The guide JSON adds `register_url`, `login_url` and `account_url`. Its `steps` and `capabilities.auth.setup` now list the adanos.com steps instead of CLI commands.
+- The legacy flags of `register`, `recover` and `redeem` still parse so old scripts reach the new message. Their values are ignored.
 
 ### Removed
 - `adanos onboard redeem` no longer exchanges an emailed one-time token for a key. The command stays as a stub that exits with code 2 and `onboard_redeem_removed`.
 - The CLI no longer calls the retired API registration, token redemption and recovery routes.
+- The error codes `onboard_register_failed`, `onboard_recover_failed`, `onboard_redeem_failed` and `onboard_redeem_destination_required` are no longer emitted.
 
 ## [1.34.1] - 2026-11-16
 
