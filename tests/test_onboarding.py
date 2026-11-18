@@ -7,7 +7,6 @@ import json
 import sys
 from pathlib import Path
 
-import httpx
 import respx
 
 
@@ -34,7 +33,7 @@ def test_welcome_screen_without_key(tmp_path, monkeypatch, capsys) -> None:
     assert rc == 0
     assert "ADANOS CLI" in out
     assert "API key: not configured" in out
-    assert "adanos onboard register" in out
+    assert "create a key on https://adanos.com/account, then run: adanos login" in out
 
 
 def test_welcome_screen_with_key(tmp_path, monkeypatch, capsys) -> None:
@@ -69,16 +68,30 @@ def test_start_screen_in_tty_keeps_header_but_does_not_enter_shell(tmp_path, mon
     assert "adanos consensus TSLA" in out
 
 
-def test_onboard_guide_is_cli_first(capsys) -> None:
-    rc = cli_main.main(["onboard"])
+def test_onboard_guide_points_to_adanos_com(capsys) -> None:
+    rc = cli_main.main(["--output", "text", "onboard"])
     out = capsys.readouterr().out
     assert rc == 0
-    assert "Guided setup (no curl):" in out
+    assert "1) Sign up at https://adanos.com/register (email code, Google or Apple)." in out
+    assert "2) Create an API key on https://adanos.com/account." in out
     assert "adanos login  # paste the key at the hidden prompt" in out
-    assert "adanos onboard wizard" in out
-    assert "adanos onboard register" in out
-    assert "adanos onboard recover" in out
-    assert "curl -s" not in out
+    assert "Lost your key? Log in at https://adanos.com/login and rotate it on https://adanos.com/account." in out
+    assert "redeem" not in out
+
+
+def test_onboard_guide_json_lists_adanos_com_steps(capsys) -> None:
+    rc = cli_main.main(["--json", "onboard", "guide"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["kind"] == "onboarding_guide"
+    assert payload["onboarding"]["register_url"] == "https://adanos.com/register"
+    assert payload["onboarding"]["login_url"] == "https://adanos.com/login"
+    assert payload["onboarding"]["account_url"] == "https://adanos.com/account"
+    assert payload["onboarding"]["steps"] == [
+        "Sign up or log in at https://adanos.com/register",
+        "Create an API key on https://adanos.com/account",
+        "adanos login  # paste the key at the hidden prompt",
+    ]
 
 
 def test_onboard_guide_mentions_existing_key_when_available(tmp_path, monkeypatch, capsys) -> None:
@@ -113,280 +126,152 @@ def test_onboard_wizard_respects_no_input(monkeypatch, capsys) -> None:
     assert "Interactive wizard is disabled by --no-input" in captured.err
 
 
-def test_onboard_wizard_accepts_existing_key(tmp_path, monkeypatch) -> None:
-    _isolate_config(tmp_path, monkeypatch)
+def test_onboard_wizard_sends_user_to_adanos_com_and_stores_pasted_key(isolated_config, monkeypatch, capsys) -> None:
     monkeypatch.setattr(cli_main, "is_interactive", lambda: True)
 
-    answers = iter(["y"])
+    def _unexpected_input(*_args, **_kwargs):
+        raise AssertionError("wizard without a stored key should only ask for the key")
 
-    def fake_input(prompt: str = "") -> str:
-        return next(answers)
+    monkeypatch.setattr("builtins.input", _unexpected_input)
+    monkeypatch.setattr(cli_main, "getpass", lambda prompt="": "adanos_key_pastedabcdefghijklmnopqrstuvwxyz123456")
 
-    monkeypatch.setattr("builtins.input", fake_input)
-    monkeypatch.setattr(
-        cli_main,
-        "getpass",
-        lambda prompt="": "adanos_key_existingabcdefghijklmnopqrstuvwxyz123456",
-    )
+    rc = cli_main.main(["--output", "text", "onboard", "wizard"])
+    out = capsys.readouterr().out
 
-    rc = cli_main.main(["onboard", "wizard"])
     assert rc == 0
+    assert "1) Sign up or log in at https://adanos.com/register" in out
+    assert "2) Create an API key on https://adanos.com/account" in out
+    assert "API key stored." in out
+    assert cli_config.get_profile("default")["api_key"] == "adanos_key_pastedabcdefghijklmnopqrstuvwxyz123456"
 
-    credentials = json.loads(cli_config.CREDENTIALS_PATH.read_text(encoding="utf-8"))
-    assert credentials["active_profile"] == "default"
-    assert credentials["profiles"]["default"]["api_key"] == "adanos_key_existingabcdefghijklmnopqrstuvwxyz123456"
+
+def test_onboard_wizard_replaces_stored_key_with_pasted_key(isolated_config, monkeypatch, capsys) -> None:
+    cli_config.save_config_file(api_key="adanos_key_oldabcdefghijklmnopqrstuvwxyz1234567890")
+    monkeypatch.setattr(cli_main, "is_interactive", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    monkeypatch.setattr(cli_main, "getpass", lambda prompt="": "adanos_key_newabcdefghijklmnopqrstuvwxyz1234567890")
+
+    rc = cli_main.main(["--output", "text", "onboard", "wizard"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "An API key is already configured." in out
+    assert "2) Create an API key on https://adanos.com/account" in out
+    assert cli_config.get_profile("default")["api_key"] == "adanos_key_newabcdefghijklmnopqrstuvwxyz1234567890"
 
 
 @respx.mock
-def test_onboard_register_accepts_email_verification_flow(isolated_config, capsys) -> None:
-    respx.post("https://api.adanos.com/auth/v1/register").mock(
-        return_value=httpx.Response(
-            202,
-            json={
-                "success": True,
-                "action": "accepted",
-                "message": "If your request is valid, check your email for a one-time link to retrieve your API key.",
-                "email": "alex@example.com",
-            },
-        )
+def test_onboard_register_prints_signup_url_without_api_call(capsys) -> None:
+    rc = cli_main.main(["--output", "text", "onboard", "register"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out == (
+        "Create your account and API key on adanos.com (email code, Google or Apple).\n"
+        "1) Sign up or log in at https://adanos.com/register\n"
+        "2) Create an API key on https://adanos.com/account\n"
+        "3) adanos login  # paste the key at the hidden prompt\n"
     )
 
+
+@respx.mock
+def test_onboard_register_json_accepts_legacy_flags(capsys) -> None:
     rc = cli_main.main(
         [
+            "--json",
             "onboard",
             "register",
             "--name",
-            "Alex Schneider",
+            "Alex",
             "--email",
             "alex@example.com",
             "--purpose",
-            "CLI usage for stocks and crypto",
+            "CLI",
+            "--company-name",
+            "Example",
         ]
     )
-    out = capsys.readouterr().out
     assert rc == 0
-    assert "Registration accepted." in out
-    assert "check your email" in out.lower()
-    assert "adanos onboard redeem --save" in out
+    assert json.loads(capsys.readouterr().out) == {
+        "ok": True,
+        "url": "https://adanos.com/register",
+        "steps": [
+            "Sign up or log in at https://adanos.com/register",
+            "Create an API key on https://adanos.com/account",
+            "adanos login  # paste the key at the hidden prompt",
+        ],
+        "kind": "onboard_registration",
+        "command": "onboard",
+        "subcommand": "register",
+    }
 
 
 @respx.mock
-def test_onboard_recover_requests_email_confirmation(capsys) -> None:
-    respx.post("https://adanos.com/api/recover").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "success": True,
-                "action": "accepted",
-                "message": "If an active account exists for this email, further recovery instructions will be sent separately.",
-            },
-        )
-    )
-
-    rc = cli_main.main(["onboard", "recover", "--email", "alex@example.com"])
-    out = capsys.readouterr().out
+def test_onboard_recover_json_points_to_login_without_request(capsys) -> None:
+    rc = cli_main.main(["--json", "onboard", "recover", "--email", "alex@example.com"])
     assert rc == 0
-    assert "Recovery request accepted." in out
-    assert "Check your email for the secure recovery link." in out
+    assert json.loads(capsys.readouterr().out) == {
+        "ok": True,
+        "url": "https://adanos.com/login",
+        "steps": [
+            "Log in at https://adanos.com/login",
+            "Rotate the API key on https://adanos.com/account",
+            "adanos login  # paste the key at the hidden prompt",
+        ],
+        "kind": "onboard_recovery",
+        "command": "onboard",
+        "subcommand": "recover",
+    }
 
 
 @respx.mock
-def test_onboard_recover_json_outputs_structured_response(capsys) -> None:
-    respx.post("https://adanos.com/api/recover").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "success": True,
-                "action": "accepted",
-                "message": "If an active account exists for this email, further recovery instructions will be sent separately.",
-            },
-        )
-    )
+def test_onboard_redeem_is_a_stub_that_fails_without_reading_stdin(monkeypatch, capsys) -> None:
+    stdin = io.StringIO("kt_private\n")
+    monkeypatch.setattr(sys, "stdin", stdin)
 
-    rc = cli_main.main(["--output", "json", "onboard", "recover", "--email", "alex@example.com", "--json"])
-    captured = capsys.readouterr()
-    assert rc == 0
-    payload = json.loads(captured.out)
-    assert payload["kind"] == "onboard_recovery"
-    assert payload["success"] is True
-    assert payload["action"] == "accepted"
-
-
-@respx.mock
-def test_onboard_redeem_save_writes_config(tmp_path, monkeypatch) -> None:
-    token = "kt_a8Kj2mNpQrStUvWxYz1234567890AbCdEfGhIjKlMnO"
-    cfg_dir = tmp_path / ".config" / "adanos-cli"
-    cfg_path = cfg_dir / "config.json"
-    credentials_path = cfg_dir / "credentials.json"
-
-    monkeypatch.setattr(cli_config, "CONFIG_DIR", cfg_dir)
-    monkeypatch.setattr(cli_config, "CONFIG_PATH", cfg_path)
-    monkeypatch.setattr(cli_config, "CREDENTIALS_PATH", credentials_path)
-
-    respx.post("https://api.adanos.com/auth/v1/key/redeem", json={"token": token}).mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "success": True,
-                "api_key": "adanos_key_abcdefghijklmnopqrstuvwxyz123456",
-                "plan": "free",
-                "email": "al***@example.com",
-                "retrieved_at": "2026-02-05T15:45:00Z",
-            },
-        )
-    )
-
-    rc = cli_main.main(["onboard", "redeem", "--token", token, "--save"])
-    assert rc == 0
-    assert cfg_path.exists()
-    assert credentials_path.exists()
-
-    data = json.loads(cfg_path.read_text(encoding="utf-8"))
-    assert data["base_url"] == "https://api.adanos.com"
-    credentials = json.loads(credentials_path.read_text(encoding="utf-8"))
-    assert credentials["active_profile"] == "default"
-    assert credentials["profiles"]["default"]["api_key"] == "adanos_key_abcdefghijklmnopqrstuvwxyz123456"
-
-
-@respx.mock
-def test_onboard_redeem_accepts_token_stdin(tmp_path, monkeypatch, capsys) -> None:
-    _isolate_config(tmp_path, monkeypatch)
-    delivery_value = "kt_token_from_stdin"
-    returned_data = {"success": True, "plan": "free"}
-    returned_data["api_" + "key"] = "adanos_key_fromstdinabcdefghijklmnopqrstuvwxyz"
-    monkeypatch.setattr(sys, "stdin", io.StringIO(delivery_value + "\n"))
-    respx.post("https://api.adanos.com/auth/v1/key/redeem", json={"to" + "ken": delivery_value}).mock(
-        return_value=httpx.Response(
-            200,
-            json=returned_data,
-        )
-    )
-
-    rc = cli_main.main(["--no-input", "onboard", "redeem", "--token-stdin", "--save", "--json"])
-    payload = json.loads(capsys.readouterr().out)
-
-    assert rc == 0
-    assert payload["saved"] is True
-    assert cli_config.get_profile("default")["api_key"] == "adanos_key_fromstdinabcdefghijklmnopqrstuvwxyz"
-
-
-def test_onboard_redeem_rejects_token_stdin_from_tty(monkeypatch, capsys) -> None:
-    terminal_input = io.StringIO("delivery-value\n")
-    terminal_input.isatty = lambda: True
-    monkeypatch.setattr(sys, "stdin", terminal_input)
-
-    rc = cli_main.main(["onboard", "redeem", "--token-stdin", "--save", "--json"])
-    captured = capsys.readouterr()
-
-    assert rc == 2
-    payload = json.loads(captured.err)
-    assert payload["error"]["code"] == "usage_error"
-    assert "hidden prompt" in payload["error"]["message"]
-
-
-def test_onboard_redeem_network_error_is_structured(monkeypatch, capsys) -> None:
-    request = httpx.Request("POST", "https://api.adanos.com/auth/v1/key/redeem")
-
-    def fail_request(*_args, **_kwargs):
-        raise httpx.ConnectError("connection refused", request=request)
-
-    monkeypatch.setattr(cli_main, "_request_onboard_redeem", fail_request)
-
-    rc = cli_main.main(["--json", "onboard", "redeem", "--token", "kt_private"])
-    captured = capsys.readouterr()
-
-    assert rc == 1
-    assert captured.out == ""
-    assert "Traceback" not in captured.err
-    payload = json.loads(captured.err)
-    assert payload["error"]["code"] == "network_error"
-    assert payload["error"]["message"] == "Cannot reach API base URL https://api.adanos.com."
-
-
-def test_onboard_redeem_text_requires_safe_destination_before_request(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(
-        cli_main,
-        "_request_onboard_redeem",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("token must not be consumed")),
-    )
-
-    rc = cli_main.main(["onboard", "redeem", "--token", "kt_private"])
+    rc = cli_main.main(["--json", "onboard", "redeem", "--token-stdin", "--save"])
     captured = capsys.readouterr()
 
     assert rc == 2
     assert captured.out == ""
-    assert "--save" in captured.err
-    assert "--json" in captured.err
-
-
-def test_onboard_redeem_auto_json_does_not_consume_unsaved_token(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(sys, "argv", ["adanos", "onboard", "redeem", "--token-stdin"])
-    monkeypatch.setattr(sys, "stdin", io.StringIO("kt_private\n"))
-    monkeypatch.setattr(
-        cli_main,
-        "_request_onboard_redeem",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("token must not be consumed")),
-    )
-
-    rc = cli_main.main()
-    captured = capsys.readouterr()
-
-    assert rc == 2
-    assert captured.out == ""
-    payload = json.loads(captured.err)
-    assert payload["error"]["code"] == "onboard_redeem_destination_required"
-    assert "--save" in payload["error"]["hint"]
-    assert "--json" in payload["error"]["hint"]
-
-
-def test_onboard_redeem_quiet_does_not_consume_unsaved_token(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(
-        cli_main,
-        "_request_onboard_redeem",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("input must not be consumed")),
-    )
-
-    rc = cli_main.main(["--quiet", "onboard", "redeem", "--token", "delivery-value"])
-    captured = capsys.readouterr()
-
-    assert rc == 2
-    assert json.loads(captured.err)["error"]["code"] == "onboard_redeem_destination_required"
+    assert stdin.read() == "kt_private\n"
+    assert json.loads(captured.err) == {
+        "ok": False,
+        "error": {
+            "code": "onboard_redeem_removed",
+            "message": "One-time token redemption was removed. API keys are now created on adanos.com.",
+            "hint": "Create or rotate your key on https://adanos.com/account, then run `adanos login`.",
+        },
+    }
 
 
 @respx.mock
-def test_onboard_wizard_stops_after_register_until_email_arrives(tmp_path, monkeypatch, capsys) -> None:
-    _isolate_config(tmp_path, monkeypatch)
-    monkeypatch.setattr(cli_main, "is_interactive", lambda: True)
-    respx.post("https://api.adanos.com/auth/v1/register").mock(
-        return_value=httpx.Response(
-            202,
-            json={
-                "success": True,
-                "action": "accepted",
-                "message": "If your request is valid, check your email for a one-time link to retrieve your API key.",
-                "email": "alex@example.com",
-            },
-        )
+def test_onboard_recover_text_prints_login_steps_without_request(capsys) -> None:
+    rc = cli_main.main(
+        [
+            "--output",
+            "text",
+            "onboard",
+            "recover",
+            "--email",
+            "alex@example.com",
+            "--recovery-url",
+            "https://example.com/recover",
+        ]
+    )
+    assert rc == 0
+    assert capsys.readouterr().out == (
+        "Recover access on adanos.com.\n"
+        "1) Log in at https://adanos.com/login\n"
+        "2) Rotate the API key on https://adanos.com/account\n"
+        "3) adanos login  # paste the key at the hidden prompt\n"
     )
 
-    answers = iter([
-        "n",
-        "Alex Example",
-        "alex@example.com",
-        "CLI usage for stocks and crypto",
-        "",
-        "n",
-    ])
 
-    def fake_input(prompt: str = "") -> str:
-        return next(answers)
-
-    monkeypatch.setattr("builtins.input", fake_input)
-
-    rc = cli_main.main(["onboard", "wizard"])
-    out = capsys.readouterr().out
-
-    assert rc == 0
-    assert "Registration accepted." in out
-    assert "Check your email for the secure verification link." in out
-    assert "adanos onboard redeem --token <delivery_token> --save" in out
+@respx.mock
+def test_onboard_redeem_text_with_legacy_token_flag_fails_with_hint(capsys) -> None:
+    rc = cli_main.main(["--output", "text", "onboard", "redeem", "--token", "kt_private", "--save"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert captured.out == ""
+    assert "onboard_redeem_removed" in captured.err
+    assert "https://adanos.com/account" in captured.err

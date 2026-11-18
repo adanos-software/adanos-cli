@@ -62,6 +62,11 @@ def test_capabilities_json(tmp_path, monkeypatch, capsys) -> None:
     assert payload["error_channel"] == "stderr"
     assert payload["output_modes"] == ["auto", "text", "json"]
     assert payload["auth"]["secret_input"] == ["prompt", "--api-key-stdin", "--api-key-file", "--api-key", "ADANOS_API_KEY"]
+    assert payload["auth"]["setup"] == [
+        "Sign up or log in at https://adanos.com/register",
+        "Create an API key on https://adanos.com/account",
+        "adanos login  # paste the key at the hidden prompt",
+    ]
     assert payload["json_contract"]["required"] == ["kind", "command"]
     assert "shell" in payload["commands"]
 
@@ -114,15 +119,6 @@ def test_repeated_output_mode_uses_final_value_for_parser_errors(capsys) -> None
     captured = capsys.readouterr()
     assert rc == 2
     assert captured.err.startswith("usage: adanos")
-
-
-def test_unsaved_redeem_requires_final_explicit_json_payload_selector() -> None:
-    assert cli_main._explicit_redeem_output(["--output", "json", "onboard", "redeem"])
-    assert cli_main._explicit_redeem_output(["--quiet", "--json", "onboard", "redeem"])
-    assert cli_main._explicit_redeem_output(["--json", "--quiet", "onboard", "redeem"])
-    assert not cli_main._explicit_redeem_output(["--quiet", "onboard", "redeem"])
-    assert not cli_main._explicit_redeem_output(["--json", "--output", "text", "onboard", "redeem"])
-    assert not cli_main._explicit_redeem_output(["onboard", "redeem", "--", "--output", "json"])
 
 
 def test_option_choice_error_does_not_suggest_a_subcommand(capsys) -> None:

@@ -113,26 +113,19 @@ adanos stock NVDA
 
 ## Authentication
 
-Persist a key locally:
+Accounts and API keys live on adanos.com. Sign up at https://adanos.com/register
+(email code, Google or Apple), then create a key on https://adanos.com/account.
+`adanos onboard register` prints these steps.
+
+Persist the key locally:
 
 ```bash
 adanos login  # interactive hidden prompt
 adanos login --api-key-file ~/.config/adanos-cli/key.txt
 ```
 
-Request a recovery email for an existing account:
-
-```bash
-adanos onboard recover --email you@example.com
-```
-
-Start a new signup from the CLI:
-
-```bash
-adanos onboard register --name "Jane Doe" --email "jane@example.com" --purpose "Trading research"
-# then redeem the one-time token from the verification email
-adanos onboard redeem --save  # paste the one-time code at the hidden prompt
-```
+Lost your key? Log in at https://adanos.com/login and rotate it on
+https://adanos.com/account. `adanos onboard recover` prints these steps.
 
 Use profiles:
 
