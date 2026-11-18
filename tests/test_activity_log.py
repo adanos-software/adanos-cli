@@ -79,6 +79,17 @@ def test_sanitize_argv_redacts_onboarding_identity_and_token() -> None:
         "redeem",
         "--token=<redacted>",
     ]
+    assert sanitize_argv(["onboard", "recover", "--recovery-url", "https://user:pass@example.com/r"]) == [
+        "onboard",
+        "recover",
+        "--recovery-url",
+        "<redacted>",
+    ]
+    assert sanitize_argv(["onboard", "recover", "--recovery-url=https://user:pass@example.com/r"]) == [
+        "onboard",
+        "recover",
+        "--recovery-url=<redacted>",
+    ]
 
 
 def test_sanitize_argv_redacts_sensitive_option_abbreviations() -> None:

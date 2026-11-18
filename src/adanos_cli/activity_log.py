@@ -27,6 +27,7 @@ def sanitize_argv(argv: list[str]) -> list[str]:
         "--name",
         "--output-path",
         "--purpose",
+        "--recovery-url",
         "--text",
         "--token",
     }

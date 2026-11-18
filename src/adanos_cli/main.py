@@ -2073,7 +2073,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_onboard_redeem.set_defaults(_handler="onboard_redeem")
 
     p_onboard_recover = onboard_subs.add_parser("recover", help=f"Show how to recover access on {ADANOS_LOGIN_URL}")
-    p_onboard_recover.add_argument("--email", help=argparse.SUPPRESS)
+    for legacy_flag in ("--email", "--recovery-url"):
+        p_onboard_recover.add_argument(legacy_flag, help=argparse.SUPPRESS)
     p_onboard_recover.add_argument("--json", action="store_true")
     p_onboard_recover.set_defaults(_handler="onboard_recover")
 

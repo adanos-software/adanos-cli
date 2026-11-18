@@ -145,6 +145,21 @@ def test_onboard_wizard_sends_user_to_adanos_com_and_stores_pasted_key(isolated_
     assert cli_config.get_profile("default")["api_key"] == "adanos_key_pastedabcdefghijklmnopqrstuvwxyz123456"
 
 
+def test_onboard_wizard_replaces_stored_key_with_pasted_key(isolated_config, monkeypatch, capsys) -> None:
+    cli_config.save_config_file(api_key="adanos_key_oldabcdefghijklmnopqrstuvwxyz1234567890")
+    monkeypatch.setattr(cli_main, "is_interactive", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    monkeypatch.setattr(cli_main, "getpass", lambda prompt="": "adanos_key_newabcdefghijklmnopqrstuvwxyz1234567890")
+
+    rc = cli_main.main(["--output", "text", "onboard", "wizard"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "An API key is already configured." in out
+    assert "2) Create an API key on https://adanos.com/account" in out
+    assert cli_config.get_profile("default")["api_key"] == "adanos_key_newabcdefghijklmnopqrstuvwxyz1234567890"
+
+
 @respx.mock
 def test_onboard_register_prints_signup_url_without_api_call(capsys) -> None:
     rc = cli_main.main(["--output", "text", "onboard", "register"])
@@ -161,7 +176,19 @@ def test_onboard_register_prints_signup_url_without_api_call(capsys) -> None:
 @respx.mock
 def test_onboard_register_json_accepts_legacy_flags(capsys) -> None:
     rc = cli_main.main(
-        ["--json", "onboard", "register", "--name", "Alex", "--email", "alex@example.com", "--purpose", "CLI"]
+        [
+            "--json",
+            "onboard",
+            "register",
+            "--name",
+            "Alex",
+            "--email",
+            "alex@example.com",
+            "--purpose",
+            "CLI",
+            "--company-name",
+            "Example",
+        ]
     )
     assert rc == 0
     assert json.loads(capsys.readouterr().out) == {
@@ -215,3 +242,36 @@ def test_onboard_redeem_is_a_stub_that_fails_without_reading_stdin(monkeypatch, 
             "hint": "Create or rotate your key on https://adanos.com/account, then run `adanos login`.",
         },
     }
+
+
+@respx.mock
+def test_onboard_recover_text_prints_login_steps_without_request(capsys) -> None:
+    rc = cli_main.main(
+        [
+            "--output",
+            "text",
+            "onboard",
+            "recover",
+            "--email",
+            "alex@example.com",
+            "--recovery-url",
+            "https://example.com/recover",
+        ]
+    )
+    assert rc == 0
+    assert capsys.readouterr().out == (
+        "Recover access on adanos.com.\n"
+        "1) Log in at https://adanos.com/login\n"
+        "2) Rotate the API key on https://adanos.com/account\n"
+        "3) adanos login  # paste the key at the hidden prompt\n"
+    )
+
+
+@respx.mock
+def test_onboard_redeem_text_with_legacy_token_flag_fails_with_hint(capsys) -> None:
+    rc = cli_main.main(["--output", "text", "onboard", "redeem", "--token", "kt_private", "--save"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert captured.out == ""
+    assert "onboard_redeem_removed" in captured.err
+    assert "https://adanos.com/account" in captured.err
