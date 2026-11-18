@@ -62,6 +62,11 @@ def test_capabilities_json(tmp_path, monkeypatch, capsys) -> None:
     assert payload["error_channel"] == "stderr"
     assert payload["output_modes"] == ["auto", "text", "json"]
     assert payload["auth"]["secret_input"] == ["prompt", "--api-key-stdin", "--api-key-file", "--api-key", "ADANOS_API_KEY"]
+    assert payload["auth"]["setup"] == [
+        "Sign up or log in at https://adanos.com/register",
+        "Create an API key on https://adanos.com/account",
+        "adanos login  # paste the key at the hidden prompt",
+    ]
     assert payload["json_contract"]["required"] == ["kind", "command"]
     assert "shell" in payload["commands"]
 
